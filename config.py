@@ -2,90 +2,140 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv
 
-# Load local environment variables from .env file if present
-load_dotenv()
-
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
+# Load local environment variables from .env (never committed) if present.
+# The test-suite sets CLOUDOPS_SKIP_DOTENV=1 so a developer's .env cannot change test results.
+if os.environ.get('CLOUDOPS_SKIP_DOTENV') != '1':
+    load_dotenv(os.path.join(BASE_DIR, '.env'))
+
+
+def env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None or value.strip() == '':
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def env_int(name, default):
+    value = os.environ.get(name)
+    try:
+        return int(value) if value not in (None, '') else default
+    except ValueError:
+        return default
+
+
 class Config:
-    """Base configuration shared across all environments."""
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'cloudops360-dev-insecure-secret-key-replace-in-prod')
-    
-    # SQLAlchemy configuration
+    """Base configuration shared across all environments.
+
+    Secrets (SECRET_KEY, database credentials) are resolved at application
+    start-up by app.services.secrets.resolve_runtime_secrets(), never at import
+    time, so importing this module never calls AWS.
+    """
+    ENV_NAME = 'base'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+
+    # SQLAlchemy configuration (URI resolved in create_app)
+    SQLALCHEMY_DATABASE_URI = None
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_recycle': 280,
         'pool_pre_ping': True,
     }
-    
-    # Storage abstraction (Amazon EFS mount path or local directory fallback)
+    ALLOW_SQLITE_FALLBACK = False
+    # Optional path to the Amazon RDS CA bundle. When set, MySQL connections use TLS
+    # and verify the server certificate (e.g. /etc/pki/rds/global-bundle.pem).
+    DB_SSL_CA = os.environ.get('DB_SSL_CA')
+
+    # Storage abstraction: local directory in development, Amazon EFS mount in production
+    STORAGE_BACKEND = os.environ.get('STORAGE_BACKEND', 'local')  # 'local' or 'efs'
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', os.path.join(BASE_DIR, 'uploads'))
-    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 10 * 1024 * 1024))  # 10 MB limit
+    EFS_MOUNT_POINT = os.environ.get('EFS_MOUNT_POINT', '/mnt/efs')
+    MAX_UPLOAD_BYTES = env_int('MAX_UPLOAD_BYTES', 10 * 1024 * 1024)  # per file
+    # Whole-request ceiling (form fields + file); Werkzeug rejects larger bodies with 413
+    MAX_CONTENT_LENGTH = env_int('MAX_CONTENT_LENGTH', 12 * 1024 * 1024)
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'txt', 'log', 'docx', 'csv', 'zip'}
-    
-    # Security & Session Settings
+
+    # Session & cookie security
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
-    PERMANENT_SESSION_LIFETIME = timedelta(minutes=int(os.environ.get('PERMANENT_SESSION_LIFETIME_MINUTES', 60)))
+    SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', False)
+    SESSION_COOKIE_NAME = 'cloudops360_session'
+    # Sessions expire after this much inactivity (sliding) ...
+    SESSION_IDLE_TIMEOUT_MINUTES = env_int('SESSION_IDLE_TIMEOUT_MINUTES', 30)
+    # ... and unconditionally this long after sign-in (absolute)
+    SESSION_ABSOLUTE_TIMEOUT_HOURS = env_int('SESSION_ABSOLUTE_TIMEOUT_HOURS', 8)
+    PERMANENT_SESSION_LIFETIME = timedelta(minutes=SESSION_IDLE_TIMEOUT_MINUTES)
+    REMEMBER_COOKIE_DURATION = timedelta(seconds=0)
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = 3600
 
-    # AWS Configuration
+    # Login brute-force protection (database backed so it works across EC2 instances)
+    LOGIN_MAX_FAILED_PER_ACCOUNT = env_int('LOGIN_MAX_FAILED_PER_ACCOUNT', 5)
+    LOGIN_MAX_FAILED_PER_IP = env_int('LOGIN_MAX_FAILED_PER_IP', 20)
+    LOGIN_LOCKOUT_WINDOW_MINUTES = env_int('LOGIN_LOCKOUT_WINDOW_MINUTES', 15)
+
+    # Number of reverse proxies in front of Gunicorn (Nginx = 1). 0 disables ProxyFix.
+    TRUSTED_PROXY_COUNT = env_int('TRUSTED_PROXY_COUNT', 0)
+
+    # Feature flags
+    ALLOW_SELF_REGISTRATION = env_bool('ALLOW_SELF_REGISTRATION', True)
+    SHOW_DEMO_ACCOUNTS = env_bool('SHOW_DEMO_ACCOUNTS', False)
+
+    # AWS configuration (credentials come from the EC2 IAM instance role, never from code)
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-    AWS_SECRETS_NAME = os.environ.get('AWS_SECRETS_NAME', None)
+    # Secrets Manager secret holding {"username","password","host","port","dbname"}
+    DB_SECRET_NAME = os.environ.get('DB_SECRET_NAME') or os.environ.get('AWS_SECRETS_NAME')
+    # Secrets Manager secret holding {"SECRET_KEY": "..."} for the Flask session key
+    APP_SECRET_NAME = os.environ.get('APP_SECRET_NAME')
 
-    @classmethod
-    def get_database_uri(cls):
-        """
-        Resolves the database URI.
-        1. Checks for AWS Secrets Manager secret if configured
-        2. Checks DATABASE_URL environment variable (MySQL / RDS)
-        3. Falls back to local SQLite file for immediate out-of-the-box local operation
-        """
-        if cls.AWS_SECRETS_NAME:
-            try:
-                from app.services.secrets import fetch_secret_database_uri
-                aws_uri = fetch_secret_database_uri(cls.AWS_SECRETS_NAME, cls.AWS_REGION)
-                if aws_uri:
-                    return aws_uri
-            except Exception as e:
-                print(f"[Config] Warning: Could not retrieve DB URI from AWS Secrets Manager: {e}")
-
-        env_db = os.environ.get('DATABASE_URL')
-        if env_db:
-            return env_db
-            
-        # SQLite fallback for developer quickstart or when MySQL is unconfigured
-        return f"sqlite:///{os.path.join(BASE_DIR, 'cloudops360.db')}"
+    TICKETS_PER_PAGE = 10
 
 
 class DevelopmentConfig(Config):
-    """Development configuration with debugging enabled."""
+    """Local development: MySQL via DATABASE_URL, debug on."""
+    ENV_NAME = 'development'
     DEBUG = True
-    SESSION_COOKIE_SECURE = False
-    REMEMBER_COOKIE_SECURE = False
-    SQLALCHEMY_DATABASE_URI = Config.get_database_uri()
+    ALLOW_SQLITE_FALLBACK = env_bool('ALLOW_SQLITE_FALLBACK', True)
+    SHOW_DEMO_ACCOUNTS = env_bool('SHOW_DEMO_ACCOUNTS', True)
+    DEV_FALLBACK_SECRET_KEY = 'cloudops360-dev-only-insecure-key'
 
 
 class TestingConfig(Config):
-    """Testing configuration with in-memory SQLite and isolated settings."""
+    """Automated tests. Uses in-memory SQLite unless TEST_DATABASE_URL points at MySQL."""
+    ENV_NAME = 'testing'
     TESTING = True
     DEBUG = False
+    SECRET_KEY = 'cloudops360-test-secret-key'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL', 'sqlite:///:memory:')
     WTF_CSRF_ENABLED = False
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'tests', 'test_uploads')
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'tests', '.test_uploads')
     SESSION_COOKIE_SECURE = False
+    MAX_UPLOAD_BYTES = 64 * 1024
+    MAX_CONTENT_LENGTH = 256 * 1024
+    ALLOW_SELF_REGISTRATION = True
+    SHOW_DEMO_ACCOUNTS = False
 
 
 class ProductionConfig(Config):
-    """Production configuration designed for EC2, RDS, and EFS."""
+    """EC2 + Gunicorn + Nginx, Amazon RDS for MySQL, Amazon EFS for attachments.
+
+    Fails closed: start-up aborts if no SECRET_KEY or database credentials are
+    available rather than silently falling back to insecure defaults.
+    """
+    ENV_NAME = 'production'
     DEBUG = False
     TESTING = False
-    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', True)
     REMEMBER_COOKIE_SECURE = True
-    SQLALCHEMY_DATABASE_URI = Config.get_database_uri()
-    # In production, default EFS mount is /mnt/efs/cloudops360-attachments
+    PREFERRED_URL_SCHEME = 'https'
+    STORAGE_BACKEND = os.environ.get('STORAGE_BACKEND', 'efs')
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/mnt/efs/cloudops360-attachments')
+    TRUSTED_PROXY_COUNT = env_int('TRUSTED_PROXY_COUNT', 1)
+    ALLOW_SELF_REGISTRATION = env_bool('ALLOW_SELF_REGISTRATION', False)
+    SHOW_DEMO_ACCOUNTS = False
+    # HSTS is only sent when the request arrived over HTTPS
+    ENABLE_HSTS = env_bool('ENABLE_HSTS', True)
 
 
 config_by_name = {

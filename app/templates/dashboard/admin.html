@@ -1,201 +1,134 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge, sla_cell, empty_state, stat_card, chart_box %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block chart_scripts %}{% include "_chart_scripts.html" %}{% endblock %}
 
-{% block title %}Executive Administration — CloudOps 360{% endblock %}
+{% block page_header %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">Operations Command Center</h1>
+    <p class="text-muted small mb-0">System-wide incidents, SLA compliance, technician workload and security events.</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{{ url_for('admin.analytics') }}" class="btn btn-outline-info"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>Analytics</a>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary"><i class="bi bi-people me-1" aria-hidden="true"></i>Users</a>
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold brand-font mb-1">Executive Cloud Operations Center</h2>
-    <p class="text-muted small mb-0">System-wide health analytics, SLA compliance, resource allocation, and audit forensics.</p>
-  </div>
-  <div class="d-flex gap-2">
-    <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary">
-      <i class="bi bi-people me-1"></i> Manage Users
-    </a>
-    <a href="{{ url_for('admin.sla') }}" class="btn btn-outline-info">
-      <i class="bi bi-stopwatch me-1"></i> SLA Configuration
-    </a>
-  </div>
-</div>
-
-<!-- Primary KPIs -->
+{% set sla = m.sla %}
 <div class="row g-3 mb-4">
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Total Incidents</div>
-          <div class="fs-2 fw-bold mt-1">{{ total_tickets }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-primary-subtle text-primary">
-          <i class="bi bi-hdd-stack"></i>
-        </div>
-      </div>
+  <div class="col-6 col-xl">{{ stat_card('Total incidents', m.total_tickets, 'bi-hdd-stack', 'primary', m.resolved_tickets ~ ' resolved or closed', url_for('tickets.index')) }}</div>
+  <div class="col-6 col-xl">{{ stat_card('Open workload', m.open_tickets, 'bi-activity', 'warning', m.unassigned ~ ' unassigned', url_for('tickets.index', status='active')) }}</div>
+  <div class="col-6 col-xl">{{ stat_card('Overdue', sla.overdue_count, 'bi-alarm', 'danger', 'Resolution SLA breached', url_for('tickets.index', overdue=1)) }}</div>
+  <div class="col-6 col-xl">{{ stat_card('SLA compliance',
+      (sla.compliance_rate ~ '%') if sla.compliance_rate is not none else '—',
+      'bi-patch-check', 'success' if (sla.compliance_rate or 0) >= 90 else ('warning' if sla.compliance_rate is not none else 'secondary'),
+      (sla.resolved_within_sla ~ ' of ' ~ sla.evaluated_count ~ ' evaluated') if sla.evaluated_count else 'No resolved tickets yet', url_for('admin.sla')) }}</div>
+  <div class="col-12 col-xl">{{ stat_card('Users', m.active_users, 'bi-person-check', 'info',
+      m.users_by_role['employee'] ~ ' employees · ' ~ m.users_by_role['technician'] ~ ' technicians · ' ~ m.users_by_role['admin'] ~ ' admins', url_for('admin.users')) }}</div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Ticket trend · last 14 days</h2><a href="{{ url_for('admin.analytics') }}" class="btn btn-sm btn-outline-secondary">More</a></div>
+      <div class="p-3">{{ chart_box('adminTrendChart', (m.trend.created|sum + m.trend.resolved|sum) == 0, 'No tickets created or resolved in the last 14 days', 'chart-lg') }}</div>
     </div>
   </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Active Open Queue</div>
-          <div class="fs-2 fw-bold mt-1 text-warning">{{ open_tickets }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-warning-subtle text-warning">
-          <i class="bi bi-activity"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">SLA Compliance</div>
-          <div class="fs-2 fw-bold mt-1 {% if sla_data.compliance_rate >= 90 %}text-success{% else %}text-danger{% endif %}">
-            {{ sla_data.compliance_rate }}%
-          </div>
-        </div>
-        <div class="stat-icon-wrapper bg-success-subtle text-success">
-          <i class="bi bi-patch-check"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Active Users</div>
-          <div class="fs-2 fw-bold mt-1 text-info">{{ total_users }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-info-subtle text-info">
-          <i class="bi bi-person-check"></i>
-        </div>
-      </div>
+  <div class="col-lg-4">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Incidents by priority</h2></div>
+      <div class="p-3">{{ chart_box('adminPriorityChart', m.total_tickets == 0, 'No incidents yet', 'chart-lg') }}</div>
     </div>
   </div>
 </div>
 
-<!-- Interactive Analytics Charts -->
 <div class="row g-4 mb-4">
-  <!-- Priority Breakdown -->
   <div class="col-lg-4">
     <div class="card card-premium h-100">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold small text-uppercase">Incidents by Priority</h5>
-      </div>
-      <div class="p-3 d-flex flex-column align-items-center justify-content-center" style="height: 280px;">
-        <canvas id="adminPriorityChart"></canvas>
-      </div>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Workflow status</h2></div>
+      <div class="p-3">{{ chart_box('adminStatusChart', m.total_tickets == 0, 'No incidents yet') }}</div>
     </div>
   </div>
-
-  <!-- Status Distribution -->
-  <div class="col-lg-4">
+  <div class="col-lg-8">
     <div class="card card-premium h-100">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold small text-uppercase">Workflow Status Distribution</h5>
-      </div>
-      <div class="p-3 d-flex flex-column align-items-center justify-content-center" style="height: 280px;">
-        <canvas id="adminStatusChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <!-- Category Breakdown -->
-  <div class="col-lg-4">
-    <div class="card card-premium h-100">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold small text-uppercase">Incident Categories</h5>
-      </div>
-      <div class="p-3" style="height: 280px;">
-        <canvas id="adminCategoryChart"></canvas>
-      </div>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Incidents by category</h2><a href="{{ url_for('admin.categories') }}" class="btn btn-sm btn-outline-secondary">Manage</a></div>
+      <div class="p-3">{{ chart_box('adminCategoryChart', not m.category_counts, 'No incidents yet') }}</div>
     </div>
   </div>
 </div>
 
-<!-- Support Staff Workload & Audit Logs -->
 <div class="row g-4 mb-4">
-  <!-- Staff Workload -->
-  <div class="col-lg-5">
+  <div class="col-lg-6">
     <div class="card card-premium h-100">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-person-workspace me-2 text-info"></i> Support Technician Workload</h5>
-      </div>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-person-workspace text-info me-2" aria-hidden="true"></i>Technician workload</h2></div>
+      {% if m.workload %}
       <div class="table-responsive">
         <table class="table table-premium align-middle">
-          <thead>
-            <tr>
-              <th>Technician</th>
-              <th>Active Tickets</th>
-              <th>Resolved</th>
-            </tr>
-          </thead>
+          <thead><tr><th scope="col">Technician</th><th scope="col">Active</th><th scope="col">Critical</th><th scope="col">Overdue</th><th scope="col">Resolved</th><th scope="col">Avg. time</th></tr></thead>
           <tbody>
-            {% for item in technician_workload %}
+            {% for w in m.workload %}
             <tr>
-              <td>
-                <div class="fw-semibold">{{ item.user.full_name }}</div>
-                <small class="text-muted">{{ item.user.department or 'Cloud Support' }}</small>
-              </td>
-              <td>
-                <span class="badge bg-warning-subtle text-warning border border-warning px-2">
-                  {{ item.active_count }} Active
-                </span>
-              </td>
-              <td>
-                <span class="badge bg-success-subtle text-success border border-success px-2">
-                  {{ item.resolved_count }}
-                </span>
-              </td>
+              <td><div class="d-flex align-items-center gap-2"><span class="avatar" style="width: 28px; height: 28px; font-size: 0.68rem;" aria-hidden="true">{{ w.user.initials }}</span>
+                <div><div class="fw-semibold small">{{ w.user.full_name }}</div><small class="text-muted">{{ w.user.role_label }}</small></div></div></td>
+              <td><a href="{{ url_for('tickets.index', technician=w.user.id, status='active') }}" class="badge bg-info-subtle text-info border border-info text-decoration-none">{{ w.active_count }}</a></td>
+              <td>{% if w.critical_count %}<span class="badge bg-danger">{{ w.critical_count }}</span>{% else %}<span class="text-muted small">0</span>{% endif %}</td>
+              <td>{% if w.overdue_count %}<span class="badge bg-warning text-dark">{{ w.overdue_count }}</span>{% else %}<span class="text-muted small">0</span>{% endif %}</td>
+              <td><span class="small">{{ w.resolved_count }}</span></td>
+              <td class="small text-muted">{{ w.avg_resolution or '—' }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      {% else %}
+      {{ empty_state('bi-person-x', 'No active technicians', 'Create a technician account to start assigning incidents.', url_for('admin.users'), 'Manage users') }}
+      {% endif %}
     </div>
   </div>
-
-  <!-- Recent Audit Events -->
-  <div class="col-lg-7">
+  <div class="col-lg-6">
     <div class="card card-premium h-100">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-shield-shaded me-2 text-info"></i> Recent Audit Events</h5>
-        <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-sm btn-outline-secondary">View Full Log</a>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-alarm text-danger me-2" aria-hidden="true"></i>Overdue incidents</h2><a href="{{ url_for('tickets.index', overdue=1) }}" class="btn btn-sm btn-outline-secondary">View all</a></div>
+      {% if sla.active_overdue_tickets %}
+      <div class="list-group list-group-flush">
+        {% for t in sla.active_overdue_tickets[:6] %}
+        <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="list-group-item list-group-item-action bg-transparent">
+          <div class="d-flex justify-content-between gap-2 align-items-center">
+            <span class="font-monospace small text-info">{{ t.reference_id }}</span>
+            <span>{{ priority_badge(t.priority) }} {{ status_badge(t.status) }}</span>
+          </div>
+          <div class="small text-truncate">{{ t.title }}</div>
+          <div class="small text-danger">{{ t.time_remaining_display }} · {{ t.technician.full_name if t.technician else 'Unassigned' }}</div>
+        </a>
+        {% endfor %}
       </div>
-      <div class="table-responsive">
-        <table class="table table-premium align-middle small">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Action</th>
-              <th>Actor</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% if recent_audits %}
-              {% for log in recent_audits %}
-              <tr>
-                <td class="text-nowrap text-muted">{{ log.created_at|datetimeformat }}</td>
-                <td><span class="badge bg-secondary-subtle text-body border">{{ log.action }}</span></td>
-                <td>{{ log.actor.username if log.actor else 'System' }}</td>
-                <td class="text-truncate" style="max-width: 250px;" title="{{ log.details }}">
-                  {{ log.details }}
-                </td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr><td colspan="4" class="text-center py-3 text-muted">No audit events logged yet.</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
+      {% else %}
+      {{ empty_state('bi-check2-circle', 'No overdue incidents', 'Every active incident is within its resolution target.') }}
+      {% endif %}
     </div>
+  </div>
+</div>
+
+<div class="card card-premium">
+  <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-shield-shaded text-info me-2" aria-hidden="true"></i>Recent audit events</h2><a href="{{ url_for('admin.audit_logs') }}" class="btn btn-sm btn-outline-secondary">Audit trail</a></div>
+  <div class="table-responsive">
+    <table class="table table-premium align-middle small">
+      <thead><tr><th scope="col">Time (UTC)</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Details</th></tr></thead>
+      <tbody>
+        {% for log in m.recent_audits %}
+        <tr>
+          <td class="text-nowrap text-muted">{{ log.created_at|datetimeformat('%b %d, %H:%M') }}</td>
+          <td><span class="badge text-bg-{{ log.severity }}">{{ log.action }}</span></td>
+          <td>{{ log.actor.username if log.actor else 'system' }}</td>
+          <td class="text-truncate" style="max-width: 360px;" title="{{ log.details }}">{{ log.details }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center py-3 text-muted">No audit events recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endblock %}
@@ -203,31 +136,11 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  // Priority Chart
-  const priorityLabels = ['Critical', 'High', 'Medium', 'Low'];
-  const priorityData = [
-    {{ priority_counts['Critical'] }},
-    {{ priority_counts['High'] }},
-    {{ priority_counts['Medium'] }},
-    {{ priority_counts['Low'] }}
-  ];
-  renderPriorityChart('adminPriorityChart', priorityLabels, priorityData);
-
-  // Status Chart
-  const statusLabels = ['Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'];
-  const statusData = [
-    {{ status_counts['Open'] }},
-    {{ status_counts['Assigned'] }},
-    {{ status_counts['In Progress'] }},
-    {{ status_counts['Resolved'] }},
-    {{ status_counts['Closed'] }}
-  ];
-  renderStatusChart('adminStatusChart', statusLabels, statusData);
-
-  // Category Chart
-  const catLabels = {{ category_labels|tojson }};
-  const catData = {{ category_counts|tojson }};
-  renderCategoryChart('adminCategoryChart', catLabels, catData);
+  var C = CloudOpsCharts;
+  C.trend('adminTrendChart', {{ m.trend.labels|tojson }}, {{ m.trend.created|tojson }}, {{ m.trend.resolved|tojson }});
+  C.doughnut('adminPriorityChart', {{ m.priority_counts.keys()|list|tojson }}, {{ m.priority_counts.values()|list|tojson }}, C.COLORS.priority);
+  C.doughnut('adminStatusChart', {{ m.status_counts.keys()|list|tojson }}, {{ m.status_counts.values()|list|tojson }}, C.COLORS.status);
+  C.bar('adminCategoryChart', {{ m.category_counts|map(attribute='name')|list|tojson }}, {{ m.category_counts|map(attribute='count')|list|tojson }}, { horizontal: true });
 });
 </script>
 {% endblock %}

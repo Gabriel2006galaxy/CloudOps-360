@@ -1,0 +1,109 @@
+{# Shared UI macros for CloudOps 360 #}
+
+{% macro priority_badge(priority) -%}
+<span class="badge badge-priority-{{ priority|lower }}">{% if priority == 'Critical' %}<i class="bi bi-exclamation-octagon-fill me-1" aria-hidden="true"></i>{% endif %}{{ priority }}</span>
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+<span class="badge badge-status-{{ status|lower|replace(' ', '-') }}">{{ status }}</span>
+{%- endmacro %}
+
+{% macro sla_cell(ticket, show_bar=True) -%}
+{% set pct = ticket.sla_progress_percent %}
+<div class="small {% if ticket.is_overdue %}text-danger fw-semibold{% elif ticket.is_resolved %}{% if ticket.resolution_met_sla == False %}text-warning{% else %}text-success{% endif %}{% else %}text-muted-2{% endif %}"
+     {% if ticket.resolution_due_at %}title="Resolution due {{ ticket.resolution_due_at|datetimeformat }}"{% endif %}>
+  {% if ticket.is_overdue %}<i class="bi bi-alarm me-1" aria-hidden="true"></i>{% endif %}{{ ticket.time_remaining_display }}
+</div>
+{% if show_bar and ticket.resolution_due_at and not ticket.is_resolved %}
+<div class="sla-bar mt-1 {% if pct >= 100 %}breach{% elif pct >= 75 %}warn{% endif %}" role="progressbar" aria-label="SLA time used" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100"><span style="width: {{ pct }}%"></span></div>
+{% endif %}
+{%- endmacro %}
+
+{% macro empty_state(icon, title, text, action_url=None, action_label=None) -%}
+<div class="empty-state">
+  <div class="empty-state-icon"><i class="bi {{ icon }}" aria-hidden="true"></i></div>
+  <h6 class="fw-bold">{{ title }}</h6>
+  <p class="text-muted small mb-3">{{ text }}</p>
+  {% if action_url %}<a href="{{ action_url }}" class="btn btn-sm btn-cyan">{{ action_label }}</a>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro stat_card(label, value, icon, tone='info', sub=None, href=None) -%}
+<{{ 'a' if href else 'div' }} class="stat-card h-100" {% if href %}href="{{ href }}"{% endif %}>
+  <div class="d-flex align-items-start justify-content-between gap-2">
+    <div>
+      <div class="stat-label">{{ label }}</div>
+      <div class="stat-value text-{{ tone }}">{{ value }}</div>
+      {% if sub %}<div class="stat-sub">{{ sub }}</div>{% endif %}
+    </div>
+    <div class="stat-icon-wrapper bg-{{ tone }}-subtle text-{{ tone }}"><i class="bi {{ icon }}" aria-hidden="true"></i></div>
+  </div>
+</{{ 'a' if href else 'div' }}>
+{%- endmacro %}
+
+{% macro chart_box(id, empty, empty_text='No data yet', size='') -%}
+<div class="chart-box {{ size }}" data-chart-box>
+  <div class="skeleton" aria-hidden="true"></div>
+  {% if empty %}
+  <div class="chart-empty"><i class="bi bi-bar-chart fs-3 mb-1" aria-hidden="true"></i>{{ empty_text }}</div>
+  {% else %}
+  <canvas id="{{ id }}" role="img" aria-label="{{ empty_text }}"></canvas>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro pagination_nav(pagination, endpoint, args, noun='records') -%}
+{% if pagination.total %}
+<div class="card-footer bg-transparent border-top p-3 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+  <div class="small text-muted">
+    Showing {{ (pagination.page - 1) * pagination.per_page + 1 }}–{{ [pagination.page * pagination.per_page, pagination.total]|min }}
+    of {{ pagination.total }} {{ noun }}
+  </div>
+  {% if pagination.pages > 1 %}
+  <nav aria-label="Pagination">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for(endpoint, page=pagination.prev_num or 1, **args) }}" aria-label="Previous page">&laquo;</a>
+      </li>
+      {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for(endpoint, page=p, **args) }}" {% if p == pagination.page %}aria-current="page"{% endif %}>{{ p }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for(endpoint, page=pagination.next_num or pagination.pages, **args) }}" aria-label="Next page">&raquo;</a>
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro sort_header(label, key, filters, endpoint='tickets.index') -%}
+{% set active = filters.get('sort_by', 'created_at') == key %}
+{% set current_order = filters.get('order', 'desc') %}
+{% set next_order = 'asc' if (active and current_order == 'desc') else 'desc' %}
+{% set args = dict(filters) %}{% set _ = args.update({'sort_by': key, 'order': next_order}) %}{% set _ = args.pop('page', None) %}
+<a class="th-sort {% if active %}active{% endif %}" href="{{ url_for(endpoint, **args) }}"
+   {% if active %}aria-sort="{{ 'ascending' if current_order == 'asc' else 'descending' }}"{% endif %}>
+  {{ label }} <i class="bi {% if active and current_order == 'asc' %}bi-caret-up-fill{% elif active %}bi-caret-down-fill{% else %}bi-chevron-expand{% endif %}" aria-hidden="true"></i>
+</a>
+{%- endmacro %}
+
+{% macro field(f, label=None, help=None, required=False) -%}
+<div class="mb-3">
+  <label class="form-label small fw-semibold" for="{{ f.id }}">{{ label or f.label.text }}{% if required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
+  {% set attrs = dict(kwargs) %}
+  {% set _ = attrs.update({'class': ('form-select' if f.type == 'SelectField' else 'form-control') ~ (' is-invalid' if f.errors else '')}) %}
+  {% if help %}{% set _ = attrs.update({'aria-describedby': f.id ~ '-help'}) %}{% endif %}
+  {% if required %}{% set _ = attrs.update({'required': True}) %}{% endif %}
+  {{ f(**attrs) }}
+  {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+  {% if help %}<div class="form-text small" id="{{ f.id }}-help">{{ help }}</div>{% endif %}
+</div>
+{%- endmacro %}

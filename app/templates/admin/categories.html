@@ -1,111 +1,108 @@
 {% extends "base.html" %}
+{% from "_macros.html" import field, empty_state %}
+{% block title %}Categories{% endblock %}
 
-{% block title %}Incident Categories — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Categories</li>
+</ol></nav>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">Incident Categories</h1>
+    <p class="text-muted small mb-0">Inactive categories stay on existing tickets but are hidden from the new-ticket form.</p>
+  </div>
+  <button class="btn btn-cyan shadow-sm" data-bs-toggle="modal" data-bs-target="#createCategoryModal"><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>New Category</button>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold brand-font mb-1">Incident Categories</h2>
-    <p class="text-muted small mb-0">Organize and classify infrastructure, software, security, and network tickets.</p>
+<div class="card card-premium">
+  {% if rows %}
+  <div class="table-responsive">
+    <table class="table table-premium align-middle">
+      <thead><tr><th scope="col">Category</th><th scope="col">Tickets</th><th scope="col">Status</th><th scope="col" class="text-end">Actions</th></tr></thead>
+      <tbody>
+        {% for c, count in rows %}
+        <tr>
+          <td><div class="fw-semibold">{{ c.name }}</div><small class="text-muted">{{ c.description or '—' }}</small></td>
+          <td><a href="{{ url_for('tickets.index', category_id=c.id) }}" class="badge bg-info-subtle text-info border border-info text-decoration-none">{{ count }}</a></td>
+          <td>{% if c.is_active %}<span class="badge bg-success-subtle text-success border border-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-muted border">Inactive</span>{% endif %}</td>
+          <td class="text-end text-nowrap">
+            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editCategory{{ c.id }}"><i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Edit {{ c.name }}</span></button>
+            <form action="{{ url_for('admin.toggle_category', category_id=c.id) }}" method="POST" class="d-inline"
+                  data-confirm="{{ 'Disable' if c.is_active else 'Enable' }} category '{{ c.name }}'?" data-confirm-button="{{ 'Disable' if c.is_active else 'Enable' }}" data-confirm-class="{{ 'btn-warning' if c.is_active else 'btn-success' }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm {% if c.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}" data-no-spinner>
+                <i class="bi {% if c.is_active %}bi-toggle-on{% else %}bi-toggle-off{% endif %}" aria-hidden="true"></i><span class="visually-hidden">{{ 'Disable' if c.is_active else 'Enable' }} {{ c.name }}</span>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-  <button class="btn btn-cyan shadow-sm" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
-    <i class="bi bi-tag me-1"></i> Add Category
-  </button>
+  {% else %}
+  {{ empty_state('bi-tags', 'No categories yet', 'Create at least one category so employees can report incidents.') }}
+  {% endif %}
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-8">
-    <div class="card card-premium">
-      <div class="table-responsive">
-        <table class="table table-premium align-middle">
-          <thead>
-            <tr>
-              <th>Category Name</th>
-              <th>Description</th>
-              <th>Tickets Count</th>
-              <th>Status</th>
-              <th class="text-end">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for cat in categories %}
-            <tr>
-              <td>
-                <span class="fw-semibold text-main">{{ cat.name }}</span>
-              </td>
-              <td class="text-muted small">{{ cat.description or '—' }}</td>
-              <td>
-                <span class="badge bg-secondary-subtle text-body border">{{ cat.tickets.count() }} tickets</span>
-              </td>
-              <td>
-                {% if cat.is_active %}
-                <span class="badge bg-success-subtle text-success border border-success">Active</span>
-                {% else %}
-                <span class="badge bg-secondary text-white">Disabled</span>
-                {% endif %}
-              </td>
-              <td class="text-end">
-                <form action="{{ url_for('admin.toggle_category', category_id=cat.id) }}" method="POST" class="d-inline">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit" class="btn btn-sm {% if cat.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
-                    {% if cat.is_active %}Disable{% else %}Enable{% endif %}
-                  </button>
-                </form>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-4">
-    <div class="card card-premium p-4">
-      <h5 class="fw-bold mb-3"><i class="bi bi-info-circle text-info me-2"></i> Category Guidelines</h5>
-      <p class="text-muted small">
-        Incident categories establish classification taxonomies for cloud service requests and route tickets to specialized technician response groups.
-      </p>
-      <div class="small text-muted">
-        <div>&bull; Cloud Infrastructure (Compute, ASG, Load Balancers)</div>
-        <div>&bull; Database & Storage (Amazon RDS, Amazon EFS)</div>
-        <div>&bull; Network & Connectivity (VPC, Direct Connect, VPN)</div>
-        <div>&bull; Security & Compliance (IAM, Certificates, WAF)</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Add Category -->
-<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+{% for c, count in rows %}
+<div class="modal fade" id="editCategory{{ c.id }}" tabindex="-1" aria-labelledby="editCategoryLabel{{ c.id }}" aria-hidden="true">
   <div class="modal-dialog">
-    <div class="modal-content card-premium">
-      <form action="{{ url_for('admin.categories') }}" method="POST">
-        {{ form.hidden_tag() }}
-        <div class="modal-header border-bottom">
-          <h5 class="modal-title fw-bold" id="createCategoryModalLabel">Add Incident Category</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <form class="modal-content card-premium" method="POST" action="{{ url_for('admin.edit_category', category_id=c.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold" id="editCategoryLabel{{ c.id }}">Edit category</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small fw-semibold" for="cat-name-{{ c.id }}">Name</label>
+        <input class="form-control mb-3" id="cat-name-{{ c.id }}" name="name" value="{{ c.name }}" required minlength="2" maxlength="64">
+        <label class="form-label small fw-semibold" for="cat-desc-{{ c.id }}">Description</label>
+        <input class="form-control mb-3" id="cat-desc-{{ c.id }}" name="description" value="{{ c.description or '' }}" maxlength="255">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="cat-active-{{ c.id }}" name="is_active" value="y" {% if c.is_active %}checked{% endif %}>
+          <label class="form-check-label small" for="cat-active-{{ c.id }}">Active</label>
         </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Category Name <span class="text-danger">*</span></label>
-            {{ form.name(class="form-control", placeholder="e.g. Identity & Access (IAM/SSO)") }}
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Description</label>
-            {{ form.description(class="form-control", placeholder="Scope of issues covered under this category") }}
-          </div>
-          <div class="form-check">
-            {{ form.is_active(class="form-check-input") }}
-            <label class="form-check-label small" for="{{ form.is_active.id }}">Category Active</label>
-          </div>
-        </div>
-        <div class="modal-footer border-top">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-cyan">Save Category</button>
-        </div>
-      </form>
-    </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-cyan">Save</button>
+      </div>
+    </form>
   </div>
 </div>
+{% endfor %}
+
+<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryLabel" aria-hidden="true" {% if open_create_modal %}data-open-on-load{% endif %}>
+  <div class="modal-dialog">
+    <form class="modal-content card-premium" method="POST" action="{{ url_for('admin.categories') }}" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold" id="createCategoryLabel">New category</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {{ field(form.name, required=True, maxlength=64) }}
+        {{ field(form.description, maxlength=255) }}
+        <div class="form-check">
+          {{ form.is_active(class='form-check-input') }}
+          <label class="form-check-label small" for="{{ form.is_active.id }}">{{ form.is_active.label.text }}</label>
+        </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-cyan">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('[data-open-on-load]').forEach(function (el) { bootstrap.Modal.getOrCreateInstance(el).show(); });
+</script>
 {% endblock %}

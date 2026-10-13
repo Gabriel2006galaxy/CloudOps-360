@@ -1,184 +1,145 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge, sla_cell, empty_state, pagination_nav, sort_header %}
+{% block title %}Tickets{% endblock %}
 
-{% block title %}Incident Tickets — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{% if filters.get('overdue') %}Overdue incidents{% else %}Tickets{% endif %}</li>
+</ol></nav>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">
+      {% if filters.get('overdue') %}Overdue Incidents{% elif current_user.is_employee %}My Tickets{% else %}Incident Tickets{% endif %}
+    </h1>
+    <p class="text-muted small mb-0">
+      {% if current_user.is_employee %}Incidents you have reported.
+      {% elif current_user.is_technician %}Tickets assigned to you and the unassigned queue.
+      {% else %}All incidents across the organisation.{% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('tickets.create') }}" class="btn btn-cyan shadow-sm"><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Report Incident</a>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold brand-font mb-1">Incident Tickets Management</h2>
-    <p class="text-muted small mb-0">Browse, filter, and track lifecycle status of enterprise cloud and IT incidents.</p>
-  </div>
-  <a href="{{ url_for('tickets.create') }}" class="btn btn-cyan shadow-sm">
-    <i class="bi bi-plus-circle me-1"></i> Report New Incident
-  </a>
-</div>
-
-<!-- Search & Filtering Toolbar -->
-<div class="card card-premium p-3 mb-4">
-  <form method="GET" action="{{ url_for('tickets.index') }}">
-    <div class="row g-2 align-items-center">
-      <!-- Search Input -->
-      <div class="col-md-3">
-        <div class="input-group input-group-sm">
-          <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search"></i></span>
-          <input type="text" name="q" class="form-control" placeholder="Search reference, title..." value="{{ current_search }}">
-        </div>
-      </div>
-
-      <!-- Status Filter -->
-      <div class="col-sm-6 col-md-2">
-        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">All Statuses</option>
-          <option value="Open" {% if current_status == 'Open' %}selected{% endif %}>Open</option>
-          <option value="Assigned" {% if current_status == 'Assigned' %}selected{% endif %}>Assigned</option>
-          <option value="In Progress" {% if current_status == 'In Progress' %}selected{% endif %}>In Progress</option>
-          <option value="Resolved" {% if current_status == 'Resolved' %}selected{% endif %}>Resolved</option>
-          <option value="Closed" {% if current_status == 'Closed' %}selected{% endif %}>Closed</option>
-        </select>
-      </div>
-
-      <!-- Priority Filter -->
-      <div class="col-sm-6 col-md-2">
-        <select name="priority" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">All Priorities</option>
-          <option value="Critical" {% if current_priority == 'Critical' %}selected{% endif %}>Critical</option>
-          <option value="High" {% if current_priority == 'High' %}selected{% endif %}>High</option>
-          <option value="Medium" {% if current_priority == 'Medium' %}selected{% endif %}>Medium</option>
-          <option value="Low" {% if current_priority == 'Low' %}selected{% endif %}>Low</option>
-        </select>
-      </div>
-
-      <!-- Category Filter -->
-      <div class="col-sm-6 col-md-2">
-        <select name="category_id" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">All Categories</option>
-          {% for cat in categories %}
-          <option value="{{ cat.id }}" {% if current_category == cat.id %}selected{% endif %}>{{ cat.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <!-- Overdue Filter Toggle & Submit -->
-      <div class="col-sm-6 col-md-3 d-flex gap-2 justify-content-md-end">
-        <a href="{{ url_for('tickets.index', overdue=1 if not overdue_only else None) }}" class="btn btn-sm {% if overdue_only %}btn-danger{% else %}btn-outline-danger{% endif %} text-nowrap">
-          <i class="bi bi-alarm me-1"></i> Overdue Only
-        </a>
-        <button type="submit" class="btn btn-sm btn-cyan">Filter</button>
-        {% if current_search or current_status or current_priority or current_category or overdue_only %}
-        <a href="{{ url_for('tickets.index') }}" class="btn btn-sm btn-outline-secondary" title="Reset Filters">
-          <i class="bi bi-arrow-counterclockwise"></i>
-        </a>
-        {% endif %}
+<form method="GET" action="{{ url_for('tickets.index') }}" class="card card-premium p-3 mb-3" role="search" aria-label="Filter tickets">
+  <input type="hidden" name="sort_by" value="{{ filters.get('sort_by', 'created_at') }}">
+  <input type="hidden" name="order" value="{{ filters.get('order', 'desc') }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-6 col-xl-3">
+      <label for="f-q" class="form-label small text-muted mb-1">Search</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search" aria-hidden="true"></i></span>
+        <input type="search" id="f-q" name="q" class="form-control" placeholder="Reference, title, system…" value="{{ filters.get('q', '') }}" maxlength="100">
       </div>
     </div>
-  </form>
-</div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label for="f-status" class="form-label small text-muted mb-1">Status</label>
+      <select id="f-status" name="status" class="form-select form-select-sm" data-autosubmit>
+        <option value="">All statuses</option>
+        <option value="active" {% if filters.get('status') == 'active' %}selected{% endif %}>Active (not resolved)</option>
+        {% for s in statuses %}<option value="{{ s }}" {% if filters.get('status') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-xl-1">
+      <label for="f-priority" class="form-label small text-muted mb-1">Priority</label>
+      <select id="f-priority" name="priority" class="form-select form-select-sm" data-autosubmit>
+        <option value="">All</option>
+        {% for p in priorities %}<option value="{{ p }}" {% if filters.get('priority') == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <label for="f-category" class="form-label small text-muted mb-1">Category</label>
+      <select id="f-category" name="category_id" class="form-select form-select-sm" data-autosubmit>
+        <option value="">All categories</option>
+        {% for c in categories %}<option value="{{ c.id }}" {% if filters.get('category_id') == c.id %}selected{% endif %}>{{ c.name }}{% if not c.is_active %} (inactive){% endif %}</option>{% endfor %}
+      </select>
+    </div>
+    {% if current_user.is_staff %}
+    <div class="col-6 col-md-4 col-xl-2">
+      <label for="f-tech" class="form-label small text-muted mb-1">Assignee</label>
+      <select id="f-tech" name="technician" class="form-select form-select-sm" data-autosubmit>
+        <option value="">Anyone</option>
+        <option value="me" {% if filters.get('technician') == 'me' %}selected{% endif %}>Assigned to me</option>
+        <option value="unassigned" {% if filters.get('technician') == 'unassigned' %}selected{% endif %}>Unassigned</option>
+        {% for t in technicians %}<option value="{{ t.id }}" {% if filters.get('technician') == t.id|string %}selected{% endif %}>{{ t.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="col-6 col-md-2 col-xl-1">
+      <label for="f-per-page" class="form-label small text-muted mb-1">Per page</label>
+      <select id="f-per-page" name="per_page" class="form-select form-select-sm" data-autosubmit>
+        {% for n in per_page_options %}<option value="{{ n }}" {% if filters.get('per_page') == n %}selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-xl-auto">
+      <label for="f-from" class="form-label small text-muted mb-1">Created from</label>
+      <input type="date" id="f-from" name="date_from" class="form-control form-control-sm" value="{{ filters.get('date_from', '') }}">
+    </div>
+    <div class="col-6 col-md-3 col-xl-auto">
+      <label for="f-to" class="form-label small text-muted mb-1">Created to</label>
+      <input type="date" id="f-to" name="date_to" class="form-control form-control-sm" value="{{ filters.get('date_to', '') }}">
+    </div>
+    <div class="col-12 col-md-auto d-flex flex-wrap gap-2 align-items-center">
+      <div class="form-check form-switch mb-0 me-1">
+        <input class="form-check-input" type="checkbox" role="switch" id="f-overdue" name="overdue" value="1" {% if filters.get('overdue') %}checked{% endif %} data-autosubmit>
+        <label class="form-check-label small" for="f-overdue">Overdue only</label>
+      </div>
+      <button type="submit" class="btn btn-sm btn-cyan"><i class="bi bi-funnel me-1" aria-hidden="true"></i>Apply</button>
+      {% if has_filters %}
+      <a href="{{ url_for('tickets.index') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Clear</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
 
-<!-- Incident Tickets Table -->
 <div class="card card-premium">
   <div class="table-responsive">
     <table class="table table-premium align-middle">
+      <caption class="visually-hidden">Tickets matching the current filters</caption>
       <thead>
         <tr>
-          <th>Reference</th>
-          <th>Incident Title</th>
-          <th>Reporter</th>
-          <th>Assignee</th>
-          <th>Priority</th>
-          <th>Status</th>
-          <th>SLA Target</th>
-          <th>Created</th>
-          <th class="text-end">Actions</th>
+          <th scope="col">{{ sort_header('Reference', 'reference_id', filters) }}</th>
+          <th scope="col">{{ sort_header('Title', 'title', filters) }}</th>
+          <th scope="col">Reporter</th>
+          <th scope="col">Assignee</th>
+          <th scope="col">{{ sort_header('Priority', 'priority', filters) }}</th>
+          <th scope="col">{{ sort_header('Status', 'status', filters) }}</th>
+          <th scope="col" style="min-width: 150px;">{{ sort_header('SLA', 'resolution_due_at', filters) }}</th>
+          <th scope="col">{{ sort_header('Created', 'created_at', filters) }}</th>
         </tr>
       </thead>
       <tbody>
-        {% if tickets %}
-          {% for ticket in tickets %}
-          <tr class="{% if ticket.is_overdue %}table-danger-subtle{% endif %}">
-            <td>
-              <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="fw-bold text-info text-decoration-none">
-                {{ ticket.reference_id }}
-              </a>
-            </td>
-            <td>
-              <div class="fw-semibold text-truncate" style="max-width: 260px;" title="{{ ticket.title }}">
-                {{ ticket.title }}
-              </div>
-              <small class="text-muted">{{ ticket.category.name if ticket.category else 'General' }}</small>
-            </td>
-            <td>
-              <div class="small fw-medium">{{ ticket.creator.full_name }}</div>
-              <small class="text-muted">{{ ticket.department or 'General' }}</small>
-            </td>
-            <td>
-              {% if ticket.technician %}
-              <div class="small fw-medium text-info"><i class="bi bi-person-check me-1"></i>{{ ticket.technician.full_name }}</div>
-              {% else %}
-              <span class="badge bg-secondary-subtle text-muted border">Unassigned</span>
-              {% endif %}
-            </td>
-            <td>
-              <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
-            </td>
-            <td>
-              <span class="badge badge-status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
-            </td>
-            <td>
-              <span class="small {% if ticket.is_overdue %}text-danger fw-bold{% else %}text-muted{% endif %}">
-                {% if ticket.is_overdue %}<i class="bi bi-exclamation-triangle-fill me-1"></i>{% endif %}
-                {{ ticket.time_remaining_display }}
-              </span>
-            </td>
-            <td class="text-nowrap small text-muted">
-              {{ ticket.created_at|dateformat }}
-            </td>
-            <td class="text-end">
-              <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="btn btn-sm btn-outline-info">
-                View
-              </a>
-            </td>
-          </tr>
-          {% endfor %}
+        {% for t in tickets %}
+        <tr class="{% if t.is_overdue %}table-danger-subtle{% endif %}">
+          <td class="text-nowrap"><a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="fw-bold text-info text-decoration-none font-monospace">{{ t.reference_id }}</a></td>
+          <td>
+            <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="fw-semibold text-body text-decoration-none d-block text-truncate" style="max-width: 300px;" title="{{ t.title }}">{{ t.title }}</a>
+            <small class="text-muted">{{ t.category.name }}</small>
+          </td>
+          <td><div class="small fw-medium">{{ t.creator.full_name }}</div><small class="text-muted">{{ t.department or '—' }}</small></td>
+          <td>
+            {% if t.technician %}<span class="small fw-medium"><i class="bi bi-person-check text-info me-1" aria-hidden="true"></i>{{ t.technician.full_name }}</span>
+            {% else %}<span class="badge bg-secondary-subtle text-muted border">Unassigned</span>{% endif %}
+          </td>
+          <td>{{ priority_badge(t.priority) }}</td>
+          <td>{{ status_badge(t.status) }}</td>
+          <td>{{ sla_cell(t) }}</td>
+          <td class="text-nowrap small text-muted" title="{{ t.created_at|datetimeformat }}">{{ t.created_at|dateformat }}</td>
+        </tr>
         {% else %}
-          <tr>
-            <td colspan="9" class="empty-state">
-              <div class="empty-state-icon"><i class="bi bi-ticket-detailed"></i></div>
-              <h5>No incident tickets found</h5>
-              <p class="text-muted small">No tickets match your active filter criteria.</p>
-              <a href="{{ url_for('tickets.create') }}" class="btn btn-sm btn-cyan">Report Incident</a>
-            </td>
-          </tr>
-        {% endif %}
+        <tr><td colspan="8">
+          {% if has_filters %}
+            {{ empty_state('bi-funnel', 'No tickets match these filters', 'Try widening the date range or clearing filters.', url_for('tickets.index'), 'Clear filters') }}
+          {% else %}
+            {{ empty_state('bi-ticket-detailed', 'No tickets yet', 'Incidents you can access will appear here.', url_for('tickets.create'), 'Report an incident') }}
+          {% endif %}
+        </td></tr>
+        {% endfor %}
       </tbody>
     </table>
   </div>
-
-  <!-- Pagination Controls -->
-  {% if pagination.pages > 1 %}
-  <div class="card-footer bg-transparent border-top p-3 d-flex justify-content-between align-items-center">
-    <div class="small text-muted">
-      Showing page {{ pagination.page }} of {{ pagination.pages }} ({{ pagination.total }} tickets)
-    </div>
-    <nav>
-      <ul class="pagination pagination-sm mb-0">
-        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('tickets.index', page=pagination.prev_num, q=current_search, status=current_status, priority=current_priority, category_id=current_category, overdue=overdue_only) }}">Previous</a>
-        </li>
-        {% for p in pagination.iter_pages() %}
-          {% if p %}
-          <li class="page-item {% if p == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('tickets.index', page=p, q=current_search, status=current_status, priority=current_priority, category_id=current_category, overdue=overdue_only) }}">{{ p }}</a>
-          </li>
-          {% else %}
-          <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-          {% endif %}
-        {% endfor %}
-        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('tickets.index', page=pagination.next_num, q=current_search, status=current_status, priority=current_priority, category_id=current_category, overdue=overdue_only) }}">Next</a>
-        </li>
-      </ul>
-    </nav>
-  </div>
-  {% endif %}
+  {{ pagination_nav(pagination, 'tickets.index', filters, 'tickets') }}
 </div>
 {% endblock %}

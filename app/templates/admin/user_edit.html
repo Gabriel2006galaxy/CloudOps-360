@@ -1,65 +1,53 @@
 {% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}Edit {{ user.username }}{% endblock %}
 
-{% block title %}Edit User {{ user.username }} — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('admin.users') }}">Users &amp; roles</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ user.username }}</li>
+</ol></nav>
+<h1 class="page-title fw-bold brand-font mb-4">Edit user · {{ user.full_name }}</h1>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center py-4">
-  <div class="col-md-7 col-lg-6">
-    <div class="card card-premium p-4 shadow">
-      <div class="d-flex align-items-center justify-content-between mb-4 border-bottom pb-3">
-        <div>
-          <h3 class="fw-bold brand-font mb-1">Edit User Account</h3>
-          <p class="text-muted small mb-0">Modify identity credentials, role permissions, or reset access.</p>
-        </div>
-        <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-arrow-left me-1"></i> Back to Users
-        </a>
+<div class="row g-4">
+  <div class="col-lg-8">
+    <form method="POST" class="card card-premium p-4" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="row g-2">
+        <div class="col-md-6">{{ field(form.full_name, required=True) }}</div>
+        <div class="col-md-6">{{ field(form.email, required=True, type='email') }}</div>
       </div>
-
-      <form method="POST">
-        {{ form.hidden_tag() }}
-
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Username</label>
-          <input type="text" class="form-control" value="{{ user.username }}" disabled>
-          <small class="text-muted">Primary unique system identifier.</small>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Full Name</label>
-          {{ form.full_name(class="form-control") }}
-        </div>
-
-        <div class="row g-2 mb-3">
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Email Address</label>
-            {{ form.email(class="form-control") }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Role</label>
-            {{ form.role(class="form-select") }}
-          </div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Department</label>
-          {{ form.department(class="form-control") }}
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Reset Password (Optional)</label>
-          {{ form.new_password(class="form-control", placeholder="Leave blank to maintain current password") }}
-        </div>
-
-        <div class="mb-4 form-check">
-          {{ form.is_active(class="form-check-input") }}
-          <label class="form-check-label small fw-semibold" for="{{ form.is_active.id }}">Account Active</label>
-        </div>
-
-        <button type="submit" class="btn btn-cyan px-4">
-          <i class="bi bi-save me-1"></i> Update User Account
-        </button>
-      </form>
+      <div class="row g-2">
+        <div class="col-md-6">{{ field(form.role, required=True, help='Role changes are recorded in the audit trail.') }}</div>
+        <div class="col-md-6">{{ field(form.department) }}</div>
+      </div>
+      {{ field(form.new_password, autocomplete='new-password', help='Leave blank to keep the current password.') }}
+      <div class="form-check form-switch mb-4">
+        {{ form.is_active(class='form-check-input', role='switch') }}
+        <label class="form-check-label" for="{{ form.is_active.id }}">Account active <span class="text-muted small">(deactivation ends the user's sessions on their next request)</span></label>
+      </div>
+      <div class="d-flex gap-2 justify-content-end">
+        <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-cyan"><i class="bi bi-save me-1" aria-hidden="true"></i>Save Changes</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-lg-4">
+    <div class="card card-premium p-4">
+      <h2 class="h6 fw-bold text-uppercase text-muted mb-3">Account</h2>
+      <dl class="row small mb-0">
+        <dt class="col-6 text-muted fw-normal">Username</dt><dd class="col-6"><code>{{ user.username }}</code></dd>
+        <dt class="col-6 text-muted fw-normal">Created</dt><dd class="col-6">{{ user.created_at|dateformat }}</dd>
+        <dt class="col-6 text-muted fw-normal">Last sign-in</dt><dd class="col-6">{{ user.last_login_at|datetimeformat if user.last_login_at else 'Never' }}</dd>
+        <dt class="col-6 text-muted fw-normal">Tickets reported</dt><dd class="col-6">{{ user.created_tickets.count() }}</dd>
+        <dt class="col-6 text-muted fw-normal">Active assignments</dt><dd class="col-6">{{ active_assignments }}</dd>
+      </dl>
+      {% if active_assignments %}
+      <a href="{{ url_for('tickets.index', technician=user.id, status='active') }}" class="btn btn-sm btn-outline-info mt-3 w-100">View assigned tickets</a>
+      {% endif %}
     </div>
   </div>
 </div>

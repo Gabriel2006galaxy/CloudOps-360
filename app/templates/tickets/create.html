@@ -1,134 +1,62 @@
 {% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}Report Incident{% endblock %}
 
-{% block title %}Report New Incident — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('tickets.index') }}">Tickets</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Report incident</li>
+</ol></nav>
+<h1 class="page-title fw-bold brand-font mb-1">Report an IT Incident</h1>
+<p class="text-muted small mb-4">Describe what happened. Your ticket gets a reference number and SLA targets based on its priority.</p>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center py-3">
-  <div class="col-lg-10 col-xl-9">
-    <div class="d-flex align-items-center justify-content-between mb-4">
-      <div>
-        <h2 class="fw-bold brand-font mb-1">Report IT / Cloud Incident</h2>
-        <p class="text-muted small mb-0">Submit a new incident ticket. Cloud Operations engineers will be dispatched according to SLA priority.</p>
+<div class="row g-4">
+  <div class="col-lg-8">
+    <form method="POST" enctype="multipart/form-data" class="card card-premium p-4" novalidate>
+      {{ form.hidden_tag() }}
+      {{ field(form.title, required=True, placeholder='e.g. VPN disconnects every 10 minutes', maxlength=150) }}
+      <div class="row g-2">
+        <div class="col-md-7">{{ field(form.category_id, required=True) }}</div>
+        <div class="col-md-5">{{ field(form.priority, required=True, help='Critical = business outage. Low = minor or planned.') }}</div>
       </div>
-      <a href="{{ url_for('tickets.index') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i> Back to Tickets
-      </a>
+      <div class="row g-2">
+        <div class="col-md-7">{{ field(form.affected_system, placeholder='e.g. ec2-prod-web, Laptop LT-0442, VPN') }}</div>
+        <div class="col-md-5">{{ field(form.department) }}</div>
+      </div>
+      {{ field(form.description, required=True, rows=7, placeholder='What happened, when it started, error messages, steps to reproduce, business impact…') }}
+
+      <div class="mb-4">
+        <label class="form-label small fw-semibold" for="{{ form.attachment.id }}">{{ form.attachment.label.text }}</label>
+        {{ form.attachment(class='form-control' + (' is-invalid' if form.attachment.errors else ''),
+                           accept='.png,.jpg,.jpeg,.gif,.pdf,.txt,.log,.csv,.docx,.zip',
+                           **{'data-max-bytes': config.MAX_UPLOAD_BYTES, 'aria-describedby': 'attachment-help'}) }}
+        {% for e in form.attachment.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        <div class="form-text small" id="attachment-help">PNG, JPG, GIF, PDF, TXT, LOG, CSV, DOCX or ZIP · max {{ (config.MAX_UPLOAD_BYTES / 1048576)|round(0)|int or 1 }} MB. Content is verified on upload and stored on shared storage (Amazon EFS in production).</div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 justify-content-end">
+        <a href="{{ url_for('tickets.index') }}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-cyan px-4" {% if not form.category_id.choices %}disabled{% endif %}><i class="bi bi-send me-1" aria-hidden="true"></i>Submit Incident</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-lg-4">
+    <div class="card card-premium p-4 mb-4">
+      <h2 class="h6 fw-bold text-uppercase text-muted mb-3"><i class="bi bi-stopwatch text-info me-1" aria-hidden="true"></i>What happens next</h2>
+      <ol class="small text-muted ps-3 mb-0">
+        <li class="mb-2">Your ticket is created with status <strong>Open</strong> and SLA deadlines.</li>
+        <li class="mb-2">A support technician claims it, or an administrator assigns it.</li>
+        <li class="mb-2">You are notified about status changes and public replies.</li>
+        <li>When it is <strong>Resolved</strong>, confirm and close it, or reopen it if the problem persists.</li>
+      </ol>
     </div>
-
-    <div class="row g-4">
-      <!-- Main Form -->
-      <div class="col-lg-8">
-        <div class="card card-premium p-4 shadow">
-          <form method="POST" action="{{ url_for('tickets.create') }}" enctype="multipart/form-data">
-            {{ form.hidden_tag() }}
-
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Incident Title <span class="text-danger">*</span></label>
-              {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="Brief summary of the issue e.g. EC2 Web Cluster high latency") }}
-              {% for error in form.title.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-            </div>
-
-            <div class="row g-3 mb-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
-                {{ form.category_id(class="form-select" + (" is-invalid" if form.category_id.errors else "")) }}
-                {% for error in form.category_id.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Priority Level <span class="text-danger">*</span></label>
-                {{ form.priority(class="form-select" + (" is-invalid" if form.priority.errors else ""), id="priority-select") }}
-                {% for error in form.priority.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-              </div>
-            </div>
-
-            <div class="row g-3 mb-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Affected System / Resource</label>
-                {{ form.affected_system(class="form-control" + (" is-invalid" if form.affected_system.errors else ""), placeholder="e.g. i-0a817f39b, RDS Aurora, VPN") }}
-                <div class="form-text small">AWS Resource ID, domain, or workstation.</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Department</label>
-                {{ form.department(class="form-control" + (" is-invalid" if form.department.errors else ""), value=current_user.department or "") }}
-              </div>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Detailed Description & Steps to Reproduce <span class="text-danger">*</span></label>
-              {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows=5, placeholder="Provide error messages, observed behavior, timestamps, and troubleshooting steps tried.") }}
-              {% for error in form.description.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-            </div>
-
-            <div class="mb-4">
-              <label class="form-label fw-semibold">Diagnostic Attachment (Screenshot or Logs)</label>
-              {{ form.attachment(class="form-control") }}
-              <div class="form-text small">
-                Files are stored securely in Amazon EFS shared storage. Max size: 10MB. Allowed: PNG, JPG, PDF, TXT, LOG, CSV, ZIP.
-              </div>
-            </div>
-
-            <button type="submit" class="btn btn-cyan btn-lg px-4 w-100 fw-semibold">
-              <i class="bi bi-send-check me-2"></i> Submit Incident Ticket
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <!-- SLA Policy Sidebar Guide -->
-      <div class="col-lg-4">
-        <div class="card card-premium p-4 mb-3">
-          <h5 class="fw-bold mb-3"><i class="bi bi-stopwatch text-info me-2"></i> SLA Resolution Target</h5>
-          <div id="sla-guideline-card" class="p-3 rounded-3 bg-body-tertiary border mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <strong id="sla-level-name" class="text-info">Medium Priority</strong>
-              <span id="sla-badge" class="badge badge-priority-medium">Standard</span>
-            </div>
-            <p class="small text-muted mb-2" id="sla-desc">Standard IT service inquiry or moderate system issue.</p>
-            <div class="d-flex justify-content-between text-muted small">
-              <span>Response:</span>
-              <strong id="sla-resp-time">8 Hours</strong>
-            </div>
-            <div class="d-flex justify-content-between text-muted small">
-              <span>Resolution:</span>
-              <strong id="sla-resol-time">24 Hours</strong>
-            </div>
-          </div>
-          <p class="text-muted small mb-0">
-            Tickets are assigned unique tracking references (e.g., <code>INC-2026-00001</code>) and will trigger automated notifications to on-call technicians.
-          </p>
-        </div>
-
-        <div class="card card-premium p-4">
-          <h6 class="fw-bold mb-2"><i class="bi bi-shield-check text-success me-2"></i> Storage & Security</h6>
-          <p class="text-muted small mb-0">
-            Uploaded crash diagnostics and screenshots are sanitized, assigned unique random UUIDs, and stored on an encrypted Amazon EFS POSIX shared mount.
-          </p>
-        </div>
-      </div>
+    <div class="card card-premium p-4">
+      <h2 class="h6 fw-bold text-uppercase text-muted mb-3"><i class="bi bi-shield-lock text-success me-1" aria-hidden="true"></i>Privacy</h2>
+      <p class="small text-muted mb-0">Only you, the assigned technician and administrators can see this ticket and its attachments.</p>
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-const slaProfiles = {
-  'Critical': { badge: 'badge-priority-critical', badgeText: 'Critical Impact', desc: 'Critical production outage requiring immediate 24x7 resolution.', resp: '1 Hour', resol: '4 Hours' },
-  'High': { badge: 'badge-priority-high', badgeText: 'High Impact', desc: 'Major capability impaired or severe performance degradation.', resp: '4 Hours', resol: '12 Hours' },
-  'Medium': { badge: 'badge-priority-medium', badgeText: 'Standard', desc: 'Standard IT service request or moderate issue with workaround.', resp: '8 Hours', resol: '24 Hours' },
-  'Low': { badge: 'badge-priority-low', badgeText: 'Low Impact', desc: 'Minor cosmetic inquiry or planned maintenance provisioning.', resp: '24 Hours', resol: '72 Hours' }
-};
-
-document.getElementById('priority-select').addEventListener('change', function () {
-  const p = this.value;
-  const profile = slaProfiles[p] || slaProfiles['Medium'];
-  document.getElementById('sla-level-name').innerText = `${p} Priority`;
-  const badge = document.getElementById('sla-badge');
-  badge.className = `badge ${profile.badge}`;
-  badge.innerText = profile.badgeText;
-  document.getElementById('sla-desc').innerText = profile.desc;
-  document.getElementById('sla-resp-time').innerText = profile.resp;
-  document.getElementById('sla-resol-time').innerText = profile.resol;
-});
-</script>
 {% endblock %}

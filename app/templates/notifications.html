@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pagination_nav, empty_state %}
+{% block title %}Notifications{% endblock %}
+
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Notifications</li>
+</ol></nav>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">Notifications</h1>
+    <p class="text-muted small mb-0">Assignments, comments and status changes on tickets you are involved in.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Filter notifications">
+      <a href="{{ url_for('main.notifications') }}" class="btn {% if show != 'unread' %}btn-cyan{% else %}btn-outline-secondary{% endif %}">All</a>
+      <a href="{{ url_for('main.notifications', show='unread') }}" class="btn {% if show == 'unread' %}btn-cyan{% else %}btn-outline-secondary{% endif %}">Unread ({{ unread_notifications_count }})</a>
+    </div>
+    {% if unread_notifications_count %}
+    <form method="POST" action="{{ url_for('main.mark_all_notifications') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-sm btn-outline-info"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Mark all read</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card card-premium">
+  {% if notifications %}
+  <div class="list-group list-group-flush">
+    {% for n in notifications %}
+    <a href="{{ url_for('main.open_notification', notification_id=n.id) }}" class="list-group-item list-group-item-action bg-transparent py-3 notification-item {% if not n.is_read %}unread{% endif %}">
+      <div class="d-flex gap-3">
+        <i class="bi {{ n.icon_class }} fs-5" aria-hidden="true"></i>
+        <div class="flex-grow-1">
+          <div class="d-flex justify-content-between flex-wrap gap-2">
+            <span class="fw-semibold">{{ n.title }}</span>
+            <small class="text-muted" title="{{ n.created_at|datetimeformat }}">{{ n.created_at|timeago }}</small>
+          </div>
+          <div class="small text-muted">{{ n.message }}</div>
+        </div>
+        {% if not n.is_read %}<span class="badge bg-info align-self-center">New</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {{ pagination_nav(pagination, 'main.notifications', {'show': show} if show == 'unread' else {}, 'notifications') }}
+  {% else %}
+  {{ empty_state('bi-bell-slash', 'No notifications' if show != 'unread' else 'No unread notifications', 'You will be notified about assignments, comments and status changes here.') }}
+  {% endif %}
+</div>
+{% endblock %}

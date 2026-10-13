@@ -1,47 +1,82 @@
 {% extends "base.html" %}
+{% from "_macros.html" import stat_card, chart_box, priority_badge %}
+{% block title %}Analytics{% endblock %}
+{% block chart_scripts %}{% include "_chart_scripts.html" %}{% endblock %}
 
-{% block title %}Operations Analytics — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Analytics</li>
+</ol></nav>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">Operational Analytics</h1>
+    <p class="text-muted small mb-0">Computed live from {{ total }} incident record{{ 's' if total != 1 }} in the database.</p>
+  </div>
+  <div class="btn-group btn-group-sm" role="group" aria-label="Trend period">
+    {% for d in (7, 14, 30, 90) %}
+    <a href="{{ url_for('admin.analytics', days=d) }}" class="btn {% if d == days %}btn-cyan{% else %}btn-outline-secondary{% endif %}" {% if d == days %}aria-current="true"{% endif %}>{{ d }} days</a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold brand-font mb-1">Operational Analytics & Reports</h2>
-    <p class="text-muted small mb-0">High-level telemetry, breakdown charts, and service level delivery performance.</p>
-  </div>
-  <a href="{{ url_for('admin.sla') }}" class="btn btn-outline-info">
-    <i class="bi bi-gear me-1"></i> SLA Configuration
-  </a>
+{% set s = sla_data %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ stat_card('Resolution SLA', (s.compliance_rate ~ '%') if s.compliance_rate is not none else '—', 'bi-patch-check', 'success', (s.evaluated_count ~ ' tickets evaluated') if s.evaluated_count else 'No data yet') }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('First-response SLA', (s.response_compliance_rate ~ '%') if s.response_compliance_rate is not none else '—', 'bi-reply', 'info') }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('Avg. resolution time', ((s.avg_resolution_seconds / 3600)|round(1) ~ ' h') if s.avg_resolution_seconds else '—', 'bi-hourglass-split', 'primary') }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('Breached', s.breached_count, 'bi-exclamation-triangle', 'danger', s.overdue_count ~ ' still open', url_for('tickets.index', overdue=1)) }}</div>
 </div>
 
 <div class="row g-4 mb-4">
-  <!-- Priority Doughnut -->
-  <div class="col-lg-6">
-    <div class="card card-premium p-4 h-100">
-      <h5 class="fw-bold mb-3 small text-uppercase"><i class="bi bi-pie-chart text-danger me-2"></i> Incident Priority Distribution</h5>
-      <div style="height: 300px;">
-        <canvas id="analyticsPriorityChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <!-- Status Doughnut -->
-  <div class="col-lg-6">
-    <div class="card card-premium p-4 h-100">
-      <h5 class="fw-bold mb-3 small text-uppercase"><i class="bi bi-arrow-repeat text-info me-2"></i> Workflow Status Pipeline</h5>
-      <div style="height: 300px;">
-        <canvas id="analyticsStatusChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <!-- Category Bar Chart -->
   <div class="col-12">
     <div class="card card-premium p-4">
-      <h5 class="fw-bold mb-3 small text-uppercase"><i class="bi bi-bar-chart-line text-cyan me-2"></i> Incident Volume Across Infrastructure Categories</h5>
-      <div style="height: 320px;">
-        <canvas id="analyticsCategoryChart"></canvas>
-      </div>
+      <h2 class="h6 fw-bold mb-3">Created vs. resolved · last {{ days }} days</h2>
+      {{ chart_box('analyticsTrendChart', (trend.created|sum + trend.resolved|sum) == 0, 'No activity in this period', 'chart-lg') }}
     </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card card-premium p-4 h-100">
+      <h2 class="h6 fw-bold mb-3">Priority distribution</h2>
+      {{ chart_box('analyticsPriorityChart', total == 0, 'No incidents yet') }}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card card-premium p-4 h-100">
+      <h2 class="h6 fw-bold mb-3">Status pipeline</h2>
+      {{ chart_box('analyticsStatusChart', total == 0, 'No incidents yet') }}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card card-premium p-4 h-100">
+      <h2 class="h6 fw-bold mb-3">Volume by category</h2>
+      {{ chart_box('analyticsCategoryChart', not category_data, 'No incidents yet') }}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card card-premium p-4 h-100">
+      <h2 class="h6 fw-bold mb-3">Average resolution hours by priority</h2>
+      {{ chart_box('analyticsResolutionChart', (by_priority|sum(attribute='resolved')) == 0, 'No resolved incidents yet') }}
+    </div>
+  </div>
+</div>
+
+<div class="card card-premium">
+  <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Technician performance</h2></div>
+  <div class="table-responsive">
+    <table class="table table-premium align-middle">
+      <thead><tr><th scope="col">Technician</th><th scope="col">Active</th><th scope="col">Overdue</th><th scope="col">Resolved</th><th scope="col">Avg. resolution</th></tr></thead>
+      <tbody>
+        {% for w in workload %}
+        <tr><td class="fw-semibold">{{ w.user.full_name }} <small class="text-muted">{{ w.user.role_label }}</small></td><td>{{ w.active_count }}</td>
+          <td>{{ w.overdue_count }}</td><td>{{ w.resolved_count }}</td><td>{{ w.avg_resolution or '—' }}</td></tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">No active technicians.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endblock %}
@@ -49,28 +84,13 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  const pLabels = ['Critical', 'High', 'Medium', 'Low'];
-  const pData = [
-    {{ priority_data['Critical'] }},
-    {{ priority_data['High'] }},
-    {{ priority_data['Medium'] }},
-    {{ priority_data['Low'] }}
-  ];
-  renderPriorityChart('analyticsPriorityChart', pLabels, pData);
-
-  const sLabels = ['Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'];
-  const sData = [
-    {{ status_data['Open'] }},
-    {{ status_data['Assigned'] }},
-    {{ status_data['In Progress'] }},
-    {{ status_data['Resolved'] }},
-    {{ status_data['Closed'] }}
-  ];
-  renderStatusChart('analyticsStatusChart', sLabels, sData);
-
-  const catLabels = {{ category_chart.keys()|list|tojson }};
-  const catData = {{ category_chart.values()|list|tojson }};
-  renderCategoryChart('analyticsCategoryChart', catLabels, catData);
+  var C = CloudOpsCharts;
+  C.trend('analyticsTrendChart', {{ trend.labels|tojson }}, {{ trend.created|tojson }}, {{ trend.resolved|tojson }});
+  C.doughnut('analyticsPriorityChart', {{ priority_data.keys()|list|tojson }}, {{ priority_data.values()|list|tojson }}, C.COLORS.priority);
+  C.doughnut('analyticsStatusChart', {{ status_data.keys()|list|tojson }}, {{ status_data.values()|list|tojson }}, C.COLORS.status);
+  C.bar('analyticsCategoryChart', {{ category_data|map(attribute='name')|list|tojson }}, {{ category_data|map(attribute='count')|list|tojson }}, { horizontal: true });
+  C.bar('analyticsResolutionChart', {{ by_priority|map(attribute='priority')|list|tojson }}, {{ by_priority|map(attribute='avg_hours')|list|tojson }},
+        { label: 'Avg hours', colors: ['#ef4444', '#f59e0b', '#0ea5e9', '#64748b'] });
 });
 </script>
 {% endblock %}

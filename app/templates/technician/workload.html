@@ -1,179 +1,95 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge, sla_cell, empty_state %}
+{% block title %}Queue &amp; Workload{% endblock %}
 
-{% block title %}Technician Workload Queue — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Queue &amp; workload</li>
+</ol></nav>
+<h1 class="page-title fw-bold brand-font mb-1">Queue &amp; Workload</h1>
+<p class="text-muted small mb-4">Work your assigned incidents in priority order, and claim new ones from the unassigned queue.</p>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold brand-font mb-1">Technician Workload & Incident Queue</h2>
-    <p class="text-muted small mb-0">Prioritized incident resolution, triage pool, and active troubleshooting queue.</p>
-  </div>
-  <a href="{{ url_for('tickets.create') }}" class="btn btn-cyan">
-    <i class="bi bi-plus-circle me-1"></i> Log Incident
-  </a>
-</div>
-
-<!-- Overdue Incidents Alert Callout -->
 {% if overdue_incidents %}
-<div class="card card-premium mb-4 border-danger">
-  <div class="card-header bg-danger text-white d-flex align-items-center justify-content-between py-2 px-3">
-    <span class="fw-bold small text-uppercase"><i class="bi bi-alarm-fill me-1"></i> Urgent: Overdue SLA Breaches</span>
-    <span class="badge bg-white text-danger">{{ overdue_incidents|length }} Action Required</span>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-sm table-premium align-middle mb-0">
-      <tbody>
-        {% for ot in overdue_incidents %}
-        <tr>
-          <td class="ps-3">
-            <a href="{{ url_for('tickets.detail', reference_id=ot.reference_id) }}" class="fw-bold text-danger text-decoration-none">
-              {{ ot.reference_id }}
-            </a>
-          </td>
-          <td>
-            <div class="fw-semibold">{{ ot.title }}</div>
-            <small class="text-muted">{{ ot.category.name }} &bull; {{ ot.creator.full_name }}</small>
-          </td>
-          <td><span class="badge badge-priority-{{ ot.priority|lower }}">{{ ot.priority }}</span></td>
-          <td class="text-danger fw-bold small">{{ ot.time_remaining_display }}</td>
-          <td class="text-end pe-3">
-            <a href="{{ url_for('tickets.detail', reference_id=ot.reference_id) }}" class="btn btn-sm btn-danger">
-              Resolve Breach
-            </a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+  <i class="bi bi-alarm-fill fs-5" aria-hidden="true"></i>
+  <div>{{ overdue_incidents|length }} of your active incident{{ 's' if overdue_incidents|length != 1 }} {{ 'have' if overdue_incidents|length != 1 else 'has' }} breached the resolution SLA.
+    <a href="{{ url_for('tickets.index', technician='me', overdue=1) }}" class="alert-link">Review now</a></div>
 </div>
 {% endif %}
 
 <div class="row g-4">
-  <!-- Active Assigned Queue -->
-  <div class="col-lg-7">
+  <div class="col-xl-7">
     <div class="card card-premium mb-4">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-briefcase text-info me-2"></i> My Active Assigned Queue</h5>
-        <span class="badge bg-info text-dark">{{ assigned_active|length }} Tickets</span>
-      </div>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-person-workspace text-info me-2" aria-hidden="true"></i>My active incidents <span class="badge bg-info ms-1">{{ assigned_active|length }}</span></h2></div>
+      {% if assigned_active %}
       <div class="table-responsive">
         <table class="table table-premium align-middle">
-          <thead>
-            <tr>
-              <th>Ref</th>
-              <th>Incident</th>
-              <th>Priority</th>
-              <th>SLA Status</th>
-              <th class="text-end">Action</th>
-            </tr>
-          </thead>
+          <thead><tr><th scope="col">Reference</th><th scope="col">Title</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col">SLA</th></tr></thead>
           <tbody>
-            {% if assigned_active %}
-              {% for t in assigned_active %}
-              <tr>
-                <td>
-                  <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="fw-bold text-info text-decoration-none">
-                    {{ t.reference_id }}
-                  </a>
-                </td>
-                <td>
-                  <div class="fw-semibold text-truncate" style="max-width: 200px;">{{ t.title }}</div>
-                  <small class="text-muted">{{ t.status }} &bull; {{ t.creator.full_name }}</small>
-                </td>
-                <td>
-                  <span class="badge badge-priority-{{ t.priority|lower }}">{{ t.priority }}</span>
-                </td>
-                <td>
-                  <span class="small {% if t.is_overdue %}text-danger fw-bold{% else %}text-muted{% endif %}">
-                    {{ t.time_remaining_display }}
-                  </span>
-                </td>
-                <td class="text-end">
-                  <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="btn btn-sm btn-outline-info">
-                    Manage
-                  </a>
-                </td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr><td colspan="5" class="text-center py-4 text-muted">No active tickets assigned to you.</td></tr>
-            {% endif %}
+            {% for t in assigned_active %}
+            <tr class="{% if t.is_overdue %}table-danger-subtle{% endif %}">
+              <td class="text-nowrap"><a class="fw-bold text-info text-decoration-none font-monospace" href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}">{{ t.reference_id }}</a></td>
+              <td><div class="text-truncate" style="max-width: 230px;" title="{{ t.title }}">{{ t.title }}</div><small class="text-muted">{{ t.creator.full_name }} · {{ t.category.name }}</small></td>
+              <td>{{ priority_badge(t.priority) }}</td>
+              <td>{{ status_badge(t.status) }}</td>
+              <td style="min-width: 140px;">{{ sla_cell(t) }}</td>
+            </tr>
+            {% endfor %}
           </tbody>
         </table>
       </div>
+      {% else %}
+      {{ empty_state('bi-cup-hot', 'No active assignments', 'Claim an incident from the queue to start working on it.') }}
+      {% endif %}
     </div>
 
-    <!-- Recently Resolved -->
     <div class="card card-premium">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-check2-circle text-success me-2"></i> Recently Resolved by Me</h5>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-check2-all text-success me-2" aria-hidden="true"></i>Recently resolved by me</h2></div>
+      {% if recently_resolved %}
+      <div class="list-group list-group-flush">
+        {% for t in recently_resolved %}
+        <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="list-group-item list-group-item-action bg-transparent d-flex justify-content-between align-items-center gap-2">
+          <div class="text-truncate"><span class="font-monospace small text-info me-2">{{ t.reference_id }}</span><span class="small">{{ t.title }}</span></div>
+          <span class="small text-nowrap {% if t.resolution_met_sla == False %}text-warning{% else %}text-success{% endif %}">{{ t.resolution_duration or '—' }}</span>
+        </a>
+        {% endfor %}
       </div>
-      <div class="table-responsive">
-        <table class="table table-sm table-premium align-middle mb-0">
-          <thead>
-            <tr>
-              <th>Ref</th>
-              <th>Incident</th>
-              <th>Resolved At</th>
-              <th>Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% if recently_resolved %}
-              {% for r in recently_resolved %}
-              <tr>
-                <td>
-                  <a href="{{ url_for('tickets.detail', reference_id=r.reference_id) }}" class="text-decoration-none fw-semibold">
-                    {{ r.reference_id }}
-                  </a>
-                </td>
-                <td class="small">{{ r.title }}</td>
-                <td class="small text-muted">{{ r.resolved_at|datetimeformat }}</td>
-                <td class="small text-success fw-bold">{{ r.resolution_duration or '—' }}</td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr><td colspan="4" class="text-center py-3 text-muted small">No resolved tickets yet.</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
+      {% else %}
+      <p class="text-muted small p-3 mb-0">Nothing resolved yet.</p>
+      {% endif %}
     </div>
   </div>
 
-  <!-- Unassigned Pool to Claim -->
-  <div class="col-lg-5">
+  <div class="col-xl-5" id="queue">
     <div class="card card-premium">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-inbox text-warning me-2"></i> Available Triage Pool</h5>
-        <span class="badge bg-warning text-dark">{{ unassigned_tickets|length }}</span>
-      </div>
-      <div class="p-3">
-        {% if unassigned_tickets %}
-          {% for ut in unassigned_tickets %}
-          <div class="p-3 rounded-3 border mb-3 bg-body-tertiary">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="fw-bold small text-info">{{ ut.reference_id }}</span>
-              <span class="badge badge-priority-{{ ut.priority|lower }}">{{ ut.priority }}</span>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-inbox text-primary me-2" aria-hidden="true"></i>Unassigned queue <span class="badge bg-primary ms-1">{{ unassigned_tickets|length }}</span></h2></div>
+      {% if unassigned_tickets %}
+      <div class="list-group list-group-flush">
+        {% for t in unassigned_tickets %}
+        <div class="list-group-item bg-transparent">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1 overflow-hidden">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="font-monospace small text-info text-decoration-none">{{ t.reference_id }}</a>
+                {{ priority_badge(t.priority) }}
+              </div>
+              <div class="small fw-semibold text-truncate">{{ t.title }}</div>
+              <div class="text-muted" style="font-size: 0.75rem;">{{ t.creator.full_name }} · {{ t.created_at|timeago }} · {{ sla_cell(t, show_bar=False) }}</div>
             </div>
-            <h6 class="fw-semibold mb-1 small">{{ ut.title }}</h6>
-            <div class="text-muted small mb-2">{{ ut.category.name }} &bull; Reported by {{ ut.creator.full_name }}</div>
-            <form action="{{ url_for('technician.claim', reference_id=ut.reference_id) }}" method="POST">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="btn btn-sm btn-cyan w-100">
-                <i class="bi bi-hand-index me-1"></i> Claim into My Queue
-              </button>
+            <form method="POST" action="{{ url_for('technician.claim', reference_id=t.reference_id) }}">
+              {{ claim_form.hidden_tag() }}
+              <button type="submit" class="btn btn-sm btn-cyan text-nowrap"><i class="bi bi-hand-index-thumb me-1" aria-hidden="true"></i>Claim</button>
             </form>
           </div>
-          {% endfor %}
-        {% else %}
-          <div class="text-center py-4 text-muted small">
-            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
-            All incoming incidents are currently triaged and assigned.
-          </div>
-        {% endif %}
+        </div>
+        {% endfor %}
       </div>
+      {% else %}
+      {{ empty_state('bi-inbox', 'Queue is empty', 'New incidents appear here until someone claims them.') }}
+      {% endif %}
     </div>
   </div>
 </div>

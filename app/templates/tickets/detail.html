@@ -1,128 +1,127 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge, sla_cell %}
+{% block title %}{{ ticket.reference_id }}{% endblock %}
 
-{% block title %}{{ ticket.reference_id }}: {{ ticket.title }} — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('tickets.index') }}">Tickets</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ ticket.reference_id }}</li>
+</ol></nav>
 
-{% block content %}
-<div class="mb-4">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2">
-    <div>
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <span class="fs-4 fw-bold font-monospace text-info">{{ ticket.reference_id }}</span>
-        <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
-        <span class="badge badge-status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
-        {% if ticket.is_overdue %}
-        <span class="badge bg-danger overdue-pulse"><i class="bi bi-alarm me-1"></i>SLA OVERDUE</span>
-        {% endif %}
-      </div>
-      <h2 class="fw-bold brand-font mb-0">{{ ticket.title }}</h2>
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+  <div class="flex-grow-1" style="min-width: 260px;">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+      <span class="fs-5 fw-bold font-monospace text-info">{{ ticket.reference_id }}</span>
+      {{ priority_badge(ticket.priority) }}
+      {{ status_badge(ticket.status) }}
+      {% if ticket.is_overdue %}<span class="badge bg-danger overdue-pulse"><i class="bi bi-alarm me-1" aria-hidden="true"></i>SLA overdue</span>
+      {% elif ticket.response_overdue %}<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Response overdue</span>{% endif %}
     </div>
-
-    <!-- Actions for Technicians & Admins / Reopen for Creator -->
-    <div class="d-flex gap-2">
-      {% if current_user.is_technician or current_user.is_admin %}
-      <button class="btn btn-cyan" data-bs-toggle="modal" data-bs-target="#updateTicketModal">
-        <i class="bi bi-sliders me-1"></i> Update Status / Assign
-      </button>
-      {% endif %}
-
-      {% if ticket.is_resolved %}
-      <form action="{{ url_for('tickets.reopen', reference_id=ticket.reference_id) }}" method="POST" class="d-inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-outline-warning">
-          <i class="bi bi-arrow-counterclockwise me-1"></i> Reopen Incident
-        </button>
-      </form>
-      {% endif %}
+    <h1 class="page-title fw-bold brand-font mb-1">{{ ticket.title }}</h1>
+    <div class="text-muted small">
+      Reported by <strong class="text-body">{{ ticket.creator.full_name }}</strong> · {{ ticket.created_at|datetimeformat }} · updated {{ ticket.updated_at|timeago }}
     </div>
   </div>
 
-  <div class="text-muted small">
-    Reported by <strong class="text-body">{{ ticket.creator.full_name }}</strong> on {{ ticket.created_at|datetimeformat }} &bull; Last updated {{ ticket.updated_at|datetimeformat }}
+  <div class="d-flex flex-wrap gap-2">
+    {% if can.claim %}
+    <form method="POST" action="{{ url_for('technician.claim', reference_id=ticket.reference_id) }}">
+      {{ claim_form.hidden_tag() }}
+      <button type="submit" class="btn btn-cyan"><i class="bi bi-hand-index-thumb me-1" aria-hidden="true"></i>Claim ticket</button>
+    </form>
+    {% endif %}
+    {% for a in actions %}
+      {% if a.needs_summary or a.is_reopen %}
+      <button type="button" class="btn {{ a.css }}" data-bs-toggle="modal" data-bs-target="#statusModal"
+              data-status="{{ a.target }}" data-label="{{ a.label }}" data-needs-summary="{{ 'true' if a.needs_summary else 'false' }}">
+        <i class="bi {{ a.icon }} me-1" aria-hidden="true"></i>{{ a.label }}
+      </button>
+      {% else %}
+      <form method="POST" action="{{ url_for('tickets.update_status', reference_id=ticket.reference_id) }}"
+            data-confirm="{{ a.label }}: move {{ ticket.reference_id }} from {{ ticket.status }} to {{ a.target }}?" data-confirm-button="{{ a.label }}" data-confirm-class="btn-cyan">
+        {{ status_form.hidden_tag() }}
+        <input type="hidden" name="status" value="{{ a.target }}">
+        <button type="submit" class="btn {{ a.css }}"><i class="bi {{ a.icon }} me-1" aria-hidden="true"></i>{{ a.label }}</button>
+      </form>
+      {% endif %}
+    {% endfor %}
   </div>
 </div>
 
-<div class="row g-4">
-  <!-- Left Column: Details, Description, Attachments, Comments -->
-  <div class="col-lg-8">
-    <!-- Description Card -->
-    <div class="card card-premium p-4 mb-4">
-      <h5 class="fw-bold mb-3 border-bottom pb-2"><i class="bi bi-file-earmark-text text-info me-2"></i> Incident Description</h5>
-      <div class="text-body" style="white-space: pre-wrap; line-height: 1.6;">{{ ticket.description }}</div>
-    </div>
+{% set steps = ['Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'] %}
+{% set current_index = steps.index(ticket.status) %}
+<div class="workflow-steps mb-4" aria-label="Workflow progress">
+  {% for s in steps %}
+  <div class="workflow-step {% if loop.index0 < current_index %}done{% elif loop.index0 == current_index %}current{% endif %}" {% if loop.index0 == current_index %}aria-current="step"{% endif %}>
+    {% if loop.index0 < current_index %}<i class="bi bi-check2 me-1" aria-hidden="true"></i>{% endif %}{{ s }}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
 
-    <!-- Resolution Summary (if resolved) -->
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-8">
+    <section class="card card-premium p-4 mb-4" aria-labelledby="desc-heading">
+      <h2 id="desc-heading" class="h6 fw-bold mb-3 border-bottom pb-2"><i class="bi bi-file-earmark-text text-info me-2" aria-hidden="true"></i>Description</h2>
+      <div style="white-space: pre-wrap; line-height: 1.6;">{{ ticket.description }}</div>
+    </section>
+
     {% if ticket.resolution_summary %}
-    <div class="card card-premium p-4 mb-4 border-success">
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <i class="bi bi-check-circle-fill text-success fs-5"></i>
-        <h5 class="fw-bold mb-0 text-success">Resolution Summary & Root Cause</h5>
+    <section class="card card-premium p-4 mb-4 border-success" aria-labelledby="res-heading">
+      <h2 id="res-heading" class="h6 fw-bold text-success mb-2"><i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>Resolution summary</h2>
+      <div class="small" style="white-space: pre-wrap;">{{ ticket.resolution_summary }}</div>
+      {% if ticket.resolved_at %}
+      <div class="text-muted small mt-2">Resolved {{ ticket.resolved_at|datetimeformat }} · resolution time {{ ticket.resolution_duration }}
+        {% if ticket.resolution_met_sla == False %}<span class="badge bg-warning text-dark ms-1">SLA missed</span>{% elif ticket.resolution_met_sla %}<span class="badge bg-success ms-1">Within SLA</span>{% endif %}
       </div>
-      <div class="text-body small" style="white-space: pre-wrap;">{{ ticket.resolution_summary }}</div>
-      <div class="text-muted small mt-2">
-        Resolved at {{ ticket.resolved_at|datetimeformat }} (Duration: {{ ticket.resolution_duration or 'N/A' }})
-      </div>
-    </div>
+      {% endif %}
+    </section>
     {% endif %}
 
-    <!-- Diagnostic Attachments on Amazon EFS Shared Storage -->
-    <div class="card card-premium p-4 mb-4">
-      <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-        <h5 class="fw-bold mb-0">
-          <i class="bi bi-paperclip text-info me-2"></i> Diagnostic Attachments (Amazon EFS)
-        </h5>
-        <button class="btn btn-sm btn-outline-cyan" data-bs-toggle="collapse" data-bs-target="#uploadAttachmentCollapse">
-          <i class="bi bi-upload me-1"></i> Add Attachment
+    <section class="card card-premium p-4 mb-4" id="attachments" aria-labelledby="att-heading">
+      <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2 gap-2 flex-wrap">
+        <h2 id="att-heading" class="h6 fw-bold mb-0"><i class="bi bi-paperclip text-info me-2" aria-hidden="true"></i>Attachments <span class="badge bg-secondary-subtle text-body border ms-1">{{ ticket.attachments|length }}</span></h2>
+        {% if can.upload %}
+        <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#uploadCollapse" aria-expanded="false" aria-controls="uploadCollapse">
+          <i class="bi bi-upload me-1" aria-hidden="true"></i>Add file
         </button>
+        {% endif %}
       </div>
 
-      <!-- Upload Form Collapse -->
-      <div class="collapse mb-3" id="uploadAttachmentCollapse">
-        <div class="p-3 bg-body-tertiary rounded-3 border">
-          <form action="{{ url_for('tickets.upload_attachment', reference_id=ticket.reference_id) }}" method="POST" enctype="multipart/form-data">
-            {{ attachment_form.hidden_tag() }}
-            <label class="form-label small fw-semibold">Select Log, Screenshot, or Config File</label>
-            <div class="input-group input-group-sm">
-              {{ attachment_form.attachment(class="form-control") }}
-              <button type="submit" class="btn btn-cyan">Upload to EFS</button>
-            </div>
-            <div class="form-text small">Max 10MB. Stored on Amazon EFS multi-instance mount.</div>
-          </form>
-        </div>
+      {% if can.upload %}
+      <div class="collapse mb-3" id="uploadCollapse">
+        <form action="{{ url_for('tickets.upload_attachment', reference_id=ticket.reference_id) }}" method="POST" enctype="multipart/form-data" class="p-3 bg-body-tertiary rounded-3 border">
+          {{ attachment_form.hidden_tag() }}
+          <label class="form-label small fw-semibold" for="{{ attachment_form.attachment.id }}">Screenshot, log or diagnostic file</label>
+          <div class="input-group input-group-sm">
+            {{ attachment_form.attachment(class='form-control', required=True, accept='.png,.jpg,.jpeg,.gif,.pdf,.txt,.log,.csv,.docx,.zip', **{'data-max-bytes': config.MAX_UPLOAD_BYTES}) }}
+            <button type="submit" class="btn btn-cyan">Upload</button>
+          </div>
+          <div class="form-text small">Max {{ (config.MAX_UPLOAD_BYTES / 1048576)|round(0)|int or 1 }} MB. File type and content are verified; stored with a generated name on shared storage.</div>
+        </form>
       </div>
+      {% endif %}
 
-      <!-- Attachments List -->
       {% if ticket.attachments %}
       <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0">
-          <thead>
-            <tr class="text-muted small">
-              <th>File Name</th>
-              <th>Size</th>
-              <th>Uploaded By</th>
-              <th>Date</th>
-              <th class="text-end">Action</th>
-            </tr>
-          </thead>
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr class="small text-muted"><th scope="col">File</th><th scope="col">Size</th><th scope="col">Uploaded by</th><th scope="col">Date</th><th scope="col" class="text-end">Actions</th></tr></thead>
           <tbody>
             {% for att in ticket.attachments %}
             <tr>
-              <td>
-                <i class="bi bi-file-earmark-code text-info me-1"></i>
-                <span class="fw-semibold">{{ att.original_filename }}</span>
-              </td>
-              <td class="text-muted small">{{ att.file_size_display }}</td>
+              <td><i class="bi {{ att.icon_class }} text-info me-1" aria-hidden="true"></i><span class="fw-semibold">{{ att.original_filename }}</span></td>
+              <td class="small text-muted">{{ att.file_size_display }}</td>
               <td class="small">{{ att.uploader.full_name }}</td>
-              <td class="text-muted small">{{ att.created_at|dateformat }}</td>
-              <td class="text-end">
-                <a href="{{ url_for('attachments.download', attachment_id=att.id) }}" class="btn btn-sm btn-outline-info py-0 px-2">
-                  <i class="bi bi-download"></i> Download
-                </a>
-                {% if current_user.is_admin or att.user_id == current_user.id %}
-                <form action="{{ url_for('attachments.delete', attachment_id=att.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this attachment from EFS?');">
+              <td class="small text-muted text-nowrap">{{ att.created_at|datetimeformat('%b %d, %H:%M') }}</td>
+              <td class="text-end text-nowrap">
+                <a href="{{ url_for('attachments.download', attachment_id=att.id) }}" class="btn btn-sm btn-outline-info py-0 px-2"><i class="bi bi-download" aria-hidden="true"></i><span class="visually-hidden">Download {{ att.original_filename }}</span></a>
+                {% if can_delete_attachment(att) %}
+                <form action="{{ url_for('attachments.delete', attachment_id=att.id) }}" method="POST" class="d-inline"
+                      data-confirm="Permanently delete '{{ att.original_filename }}' from storage?" data-confirm-button="Delete file">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                  <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1"><i class="bi bi-trash" aria-hidden="true"></i><span class="visually-hidden">Delete {{ att.original_filename }}</span></button>
                 </form>
                 {% endif %}
               </td>
@@ -132,186 +131,194 @@
         </table>
       </div>
       {% else %}
-      <p class="text-muted small mb-0">No diagnostic attachments uploaded yet for this incident.</p>
+      <p class="text-muted small mb-0">No attachments yet.</p>
       {% endif %}
-    </div>
+    </section>
 
-    <!-- Communication Stream & Internal Notes -->
-    <div class="card card-premium p-4 mb-4">
-      <h5 class="fw-bold mb-3 border-bottom pb-2">
-        <i class="bi bi-chat-left-dots text-info me-2"></i> Communication Stream & Internal Notes
-      </h5>
-
-      <!-- Comments Stream -->
-      <div class="comments-list mb-4">
-        {% if comments %}
-          {% for comment in comments %}
-          <div class="p-3 mb-3 rounded-3 {% if comment.is_internal %}comment-internal{% else %}bg-body-tertiary border{% endif %}">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div class="d-flex align-items-center gap-2">
-                <span class="fw-bold small">{{ comment.author.full_name }}</span>
-                <span class="badge {{ comment.author.role_badge_class }}" style="font-size: 0.7rem;">{{ comment.author.role|capitalize }}</span>
-                {% if comment.is_internal %}
-                <span class="internal-badge"><i class="bi bi-lock-fill me-1"></i>Internal Tech Note (Restricted)</span>
-                {% endif %}
-              </div>
-              <small class="text-muted" style="font-size: 0.75rem;">{{ comment.created_at|datetimeformat }}</small>
-            </div>
-            <div class="small" style="white-space: pre-wrap; line-height: 1.5;">{{ comment.content }}</div>
+    <section class="card card-premium p-4 mb-4" id="comments" aria-labelledby="comments-heading">
+      <h2 id="comments-heading" class="h6 fw-bold mb-3 border-bottom pb-2">
+        <i class="bi bi-chat-left-dots text-info me-2" aria-hidden="true"></i>Conversation
+        {% if current_user.is_staff and internal_count %}<span class="badge bg-warning text-dark ms-1">{{ internal_count }} internal</span>{% endif %}
+      </h2>
+      {% for c in comments %}
+      <article class="p-3 mb-3 rounded-3 {% if c.is_internal %}comment-internal{% else %}bg-body-tertiary border{% endif %}">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="avatar" style="width: 28px; height: 28px; font-size: 0.7rem;" aria-hidden="true">{{ c.author.initials }}</span>
+            <span class="fw-bold small">{{ c.author.full_name }}</span>
+            <span class="badge {{ c.author.role_badge_class }}" style="font-size: 0.68rem;">{{ c.author.role_label }}</span>
+            {% if c.is_internal %}<span class="internal-badge"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Internal note</span>{% endif %}
           </div>
-          {% endfor %}
-        {% else %}
-          <p class="text-muted small text-center py-3">No comments posted yet.</p>
-        {% endif %}
-      </div>
+          <small class="text-muted" title="{{ c.created_at|datetimeformat }}">{{ c.created_at|timeago }}</small>
+        </div>
+        <div class="small" style="white-space: pre-wrap; line-height: 1.55;">{{ c.content }}</div>
+      </article>
+      {% else %}
+      <p class="text-muted small text-center py-2">No comments yet.</p>
+      {% endfor %}
 
-      <!-- Add Comment Form -->
-      <form action="{{ url_for('tickets.add_comment', reference_id=ticket.reference_id) }}" method="POST">
+      {% if can.comment %}
+      <form action="{{ url_for('tickets.add_comment', reference_id=ticket.reference_id) }}" method="POST" class="mt-2">
         {{ comment_form.hidden_tag() }}
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Add Response or Note</label>
-          {{ comment_form.content(class="form-control", rows=3, placeholder="Type your comment, diagnostic finding, or troubleshooting update...") }}
+        <label class="form-label small fw-semibold" for="{{ comment_form.content.id }}">Add a {% if current_user.is_staff %}reply or note{% else %}comment{% endif %}</label>
+        {{ comment_form.content(class='form-control mb-2', rows=3, required=True, maxlength=5000, placeholder='Write an update, troubleshooting step or question…') }}
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+          {% if can.internal %}
+          <div class="form-check mb-0">
+            {{ comment_form.is_internal(class='form-check-input') }}
+            <label class="form-check-label small fw-semibold text-warning" for="{{ comment_form.is_internal.id }}"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Internal note — hidden from the employee</label>
+          </div>
+          {% else %}<span></span>{% endif %}
+          <button type="submit" class="btn btn-cyan btn-sm"><i class="bi bi-send me-1" aria-hidden="true"></i>Post</button>
         </div>
-
-        {% if current_user.is_technician or current_user.is_admin %}
-        <div class="mb-3 form-check">
-          {{ comment_form.is_internal(class="form-check-input", id="is_internal_checkbox") }}
-          <label class="form-check-label small fw-semibold text-warning" for="is_internal_checkbox">
-            <i class="bi bi-lock-fill me-1"></i> Post as Private Internal Technician Note (Hidden from employee)
-          </label>
-        </div>
-        {% endif %}
-
-        <button type="submit" class="btn btn-cyan">
-          <i class="bi bi-send me-1"></i> Submit Response
-        </button>
       </form>
-    </div>
+      {% elif ticket.status == 'Closed' %}
+      <p class="small text-muted mb-0"><i class="bi bi-lock me-1" aria-hidden="true"></i>This ticket is closed. Reopen it to add comments.</p>
+      {% elif current_user.is_technician %}
+      <p class="small text-muted mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Claim this ticket to reply or add internal notes.</p>
+      {% endif %}
+    </section>
   </div>
 
-  <!-- Right Column: Metadata, SLA Countdown & Timeline -->
-  <div class="col-lg-4">
-    <!-- Incident Metadata Card -->
-    <div class="card card-premium p-4 mb-4">
-      <h6 class="fw-bold mb-3 border-bottom pb-2 small text-uppercase">Incident Metadata</h6>
-      
-      <div class="mb-3">
-        <label class="text-muted small d-block">Incident Category</label>
-        <span class="fw-semibold">{{ ticket.category.name if ticket.category else 'General' }}</span>
-      </div>
+  <div class="col-xl-4">
+    <section class="card card-premium p-4 mb-4" aria-labelledby="details-heading">
+      <h2 id="details-heading" class="h6 fw-bold mb-3 border-bottom pb-2 text-uppercase small">Details</h2>
+      <dl class="mb-0 small">
+        <dt class="text-muted fw-normal">Category</dt><dd class="fw-semibold">{{ ticket.category.name }}</dd>
 
-      <div class="mb-3">
-        <label class="text-muted small d-block">Assigned Technician</label>
-        {% if ticket.technician %}
-        <span class="fw-semibold text-info"><i class="bi bi-person-badge me-1"></i>{{ ticket.technician.full_name }}</span>
-        {% else %}
-        <span class="badge bg-secondary-subtle text-muted border">Unassigned</span>
-        {% endif %}
-      </div>
+        <dt class="text-muted fw-normal">Assigned technician</dt>
+        <dd>
+          {% if ticket.technician %}<span class="fw-semibold text-info"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>{{ ticket.technician.full_name }}</span>
+          {% else %}<span class="badge bg-secondary-subtle text-muted border">Unassigned</span>{% endif %}
+          {% if can.assign %}
+          <form method="POST" action="{{ url_for('tickets.assign', reference_id=ticket.reference_id) }}" class="d-flex gap-1 mt-2">
+            {{ assign_form.hidden_tag() }}
+            <label class="visually-hidden" for="{{ assign_form.technician_id.id }}">Assign technician</label>
+            {{ assign_form.technician_id(class='form-select form-select-sm') }}
+            <button type="submit" class="btn btn-sm btn-outline-info" data-no-spinner>Assign</button>
+          </form>
+          {% endif %}
+        </dd>
 
-      <div class="mb-3">
-        <label class="text-muted small d-block">Affected System / Resource</label>
-        <span class="fw-semibold font-monospace small">{{ ticket.affected_system or 'N/A' }}</span>
-      </div>
+        <dt class="text-muted fw-normal">Priority</dt>
+        <dd>
+          {{ priority_badge(ticket.priority) }}
+          {% if can.edit_priority %}
+          <form method="POST" action="{{ url_for('tickets.update_priority', reference_id=ticket.reference_id) }}" class="d-flex gap-1 mt-2">
+            {{ priority_form.hidden_tag() }}
+            <label class="visually-hidden" for="{{ priority_form.priority.id }}">Change priority</label>
+            {{ priority_form.priority(class='form-select form-select-sm') }}
+            <button type="submit" class="btn btn-sm btn-outline-info" data-no-spinner>Update</button>
+          </form>
+          <div class="form-text small">Changing priority recalculates SLA deadlines.</div>
+          {% endif %}
+        </dd>
 
-      <div class="mb-3">
-        <label class="text-muted small d-block">Department</label>
-        <span class="fw-semibold">{{ ticket.department or 'General' }}</span>
-      </div>
+        <dt class="text-muted fw-normal">Affected system</dt><dd class="font-monospace">{{ ticket.affected_system or '—' }}</dd>
+        <dt class="text-muted fw-normal">Department</dt><dd>{{ ticket.department or '—' }}</dd>
+      </dl>
+      {% if can.work and ticket.status != 'Closed' %}
+      <button class="btn btn-sm btn-link px-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#detailsEdit" aria-expanded="false" aria-controls="detailsEdit"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edit system / department</button>
+      <form method="POST" action="{{ url_for('tickets.update_details', reference_id=ticket.reference_id) }}" class="collapse mt-2" id="detailsEdit">
+        {{ details_form.hidden_tag() }}
+        <label class="form-label small mb-1" for="{{ details_form.affected_system.id }}">Affected system</label>
+        {{ details_form.affected_system(class='form-control form-control-sm mb-2', maxlength=100) }}
+        <label class="form-label small mb-1" for="{{ details_form.department.id }}">Department</label>
+        {{ details_form.department(class='form-control form-control-sm mb-2', maxlength=100) }}
+        <button type="submit" class="btn btn-sm btn-cyan">Save</button>
+      </form>
+      {% endif %}
+    </section>
 
-      <div class="mb-3">
-        <label class="text-muted small d-block">Creation Timestamp</label>
-        <span class="small">{{ ticket.created_at|datetimeformat }}</span>
-      </div>
-    </div>
-
-    <!-- SLA Target & Time Remaining Card -->
-    <div class="card card-premium p-4 mb-4 {% if ticket.is_overdue %}border-danger{% endif %}">
-      <h6 class="fw-bold mb-2 small text-uppercase"><i class="bi bi-stopwatch text-info me-1"></i> SLA Target Tracking</h6>
+    <section class="card card-premium p-4 mb-4 {% if ticket.is_overdue %}border-danger{% endif %}" aria-labelledby="sla-heading">
+      <h2 id="sla-heading" class="h6 fw-bold mb-3 text-uppercase small"><i class="bi bi-stopwatch text-info me-1" aria-hidden="true"></i>SLA tracking</h2>
       <div class="p-3 bg-body-tertiary rounded-3 border mb-3">
-        <div class="small text-muted mb-1">Resolution Deadline:</div>
-        <div class="fw-bold small mb-2">{{ ticket.resolution_due_at|datetimeformat if ticket.resolution_due_at else 'No SLA configured' }}</div>
-        
-        <div class="small text-muted mb-1">Time Remaining:</div>
-        <div class="fs-5 fw-bold {% if ticket.is_overdue %}text-danger overdue-pulse{% elif ticket.is_resolved %}text-success{% else %}text-info{% endif %}">
-          {{ ticket.time_remaining_display }}
-        </div>
+        <div class="small text-muted">Resolution</div>
+        <div class="fs-5 fw-bold {% if ticket.is_overdue %}text-danger{% elif ticket.is_resolved %}text-success{% else %}text-info{% endif %}">{{ ticket.time_remaining_display }}</div>
+        {{ sla_cell(ticket) if not ticket.is_resolved and ticket.resolution_due_at else '' }}
       </div>
-      <div class="small text-muted">
-        First response recorded: {{ ticket.first_responded_at|datetimeformat if ticket.first_responded_at else 'Awaiting technician response' }}
-      </div>
-    </div>
+      <dl class="row small mb-0">
+        <dt class="col-6 text-muted fw-normal">Response due</dt><dd class="col-6">{{ ticket.response_due_at|datetimeformat('%b %d, %H:%M') }}</dd>
+        <dt class="col-6 text-muted fw-normal">First response</dt>
+        <dd class="col-6">{% if ticket.first_responded_at %}{{ ticket.first_responded_at|datetimeformat('%b %d, %H:%M') }}{% elif ticket.response_overdue %}<span class="text-danger">Overdue</span>{% else %}Awaiting{% endif %}</dd>
+        <dt class="col-6 text-muted fw-normal">Resolution due</dt><dd class="col-6">{{ ticket.resolution_due_at|datetimeformat('%b %d, %H:%M') }}</dd>
+        {% if ticket.resolved_at %}<dt class="col-6 text-muted fw-normal">Resolved</dt><dd class="col-6">{{ ticket.resolved_at|datetimeformat('%b %d, %H:%M') }}</dd>{% endif %}
+        {% if ticket.closed_at %}<dt class="col-6 text-muted fw-normal">Closed</dt><dd class="col-6">{{ ticket.closed_at|datetimeformat('%b %d, %H:%M') }}</dd>{% endif %}
+      </dl>
+    </section>
 
-    <!-- Status History Audit Timeline -->
-    <div class="card card-premium p-4">
-      <h6 class="fw-bold mb-3 border-bottom pb-2 small text-uppercase"><i class="bi bi-clock-history text-info me-1"></i> Status Transition History</h6>
-      <div class="timeline small">
-        {% for hist in status_history %}
-        <div class="border-start border-2 border-info ps-3 pb-3 position-relative">
-          <div class="fw-bold">
-            {{ hist.old_status }} &rarr; <span class="text-info">{{ hist.new_status }}</span>
-          </div>
-          <div class="text-muted" style="font-size: 0.75rem;">
-            by {{ hist.changed_by.full_name }} &bull; {{ hist.created_at|datetimeformat }}
-          </div>
-          {% if hist.notes %}
-          <div class="text-secondary mt-1 fst-italic" style="font-size: 0.8rem;">
-            &ldquo;{{ hist.notes }}&rdquo;
-          </div>
+    <section class="card card-premium p-4" aria-labelledby="activity-heading">
+      <h2 id="activity-heading" class="h6 fw-bold mb-3 border-bottom pb-2 text-uppercase small"><i class="bi bi-clock-history text-info me-1" aria-hidden="true"></i>Activity history</h2>
+      <div class="small">
+        {% for e in activity %}
+        <div class="timeline-item">
+          {% if e.kind == 'status' %}
+            <span class="timeline-dot"><i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+            <div class="fw-semibold">{{ e.item.old_status }} → <span class="text-info">{{ e.item.new_status }}</span></div>
+            <div class="text-muted" style="font-size: 0.75rem;">{{ e.item.changed_by.full_name }} · {{ e.at|datetimeformat('%b %d, %H:%M') }}</div>
+            {% if e.item.notes %}<div class="text-secondary fst-italic mt-1" style="font-size: 0.78rem;">{{ e.item.notes|truncate(160) }}</div>{% endif %}
+          {% elif e.kind == 'attachment' %}
+            <span class="timeline-dot dot-attachment"><i class="bi bi-paperclip" aria-hidden="true"></i></span>
+            <div class="fw-semibold">File uploaded</div>
+            <div class="text-muted" style="font-size: 0.75rem;">{{ e.item.uploader.full_name }} · {{ e.at|datetimeformat('%b %d, %H:%M') }} · {{ e.item.original_filename }}</div>
+          {% else %}
+            <span class="timeline-dot {% if e.kind == 'internal' %}dot-internal{% else %}dot-comment{% endif %}"><i class="bi {% if e.kind == 'internal' %}bi-lock-fill{% else %}bi-chat{% endif %}" aria-hidden="true"></i></span>
+            <div class="fw-semibold">{% if e.kind == 'internal' %}Internal note{% else %}Comment{% endif %}</div>
+            <div class="text-muted" style="font-size: 0.75rem;">{{ e.item.author.full_name }} · {{ e.at|datetimeformat('%b %d, %H:%M') }}</div>
           {% endif %}
         </div>
         {% endfor %}
       </div>
-    </div>
+    </section>
   </div>
 </div>
 
-<!-- Modal: Update Status / Assignment (Technicians & Admins) -->
-{% if current_user.is_technician or current_user.is_admin %}
-<div class="modal fade" id="updateTicketModal" tabindex="-1" aria-labelledby="updateTicketModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content card-premium">
-      <form action="{{ url_for('tickets.update', reference_id=ticket.reference_id) }}" method="POST">
-        {{ update_form.hidden_tag() }}
-        <div class="modal-header border-bottom">
-          <h5 class="modal-title fw-bold" id="updateTicketModalLabel">Update {{ ticket.reference_id }}</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+{% if actions|selectattr('needs_summary')|list or actions|selectattr('is_reopen')|list %}
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content card-premium" method="POST" action="{{ url_for('tickets.update_status', reference_id=ticket.reference_id) }}">
+      {{ status_form.hidden_tag() }}
+      <input type="hidden" name="status" id="statusModalValue" value="">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold" id="statusModalTitle">Update status</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="statusModalSummaryGroup" class="mb-3">
+          <label class="form-label small fw-semibold" for="statusModalSummary">Resolution summary &amp; root cause <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="statusModalSummary" name="resolution_summary" rows="4" minlength="10" maxlength="5000" placeholder="What was wrong, what you changed, how it was verified…">{{ ticket.resolution_summary or '' }}</textarea>
+          <div class="form-text small">Required (min. 10 characters). Visible to the reporter.</div>
         </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Status Transition</label>
-            {{ update_form.status(class="form-select") }}
-            <div class="form-text small">Workflow: Open &rarr; Assigned &rarr; In Progress &rarr; Resolved &rarr; Closed</div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Assigned Technician</label>
-            {{ update_form.technician_id(class="form-select") }}
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Priority Level</label>
-            {{ update_form.priority(class="form-select") }}
-            <div class="form-text small">Updating priority recalculates SLA resolution deadlines.</div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Affected System</label>
-            {{ update_form.affected_system(class="form-control") }}
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Resolution Summary & Root Cause (Required when Resolving)</label>
-            {{ update_form.resolution_summary(class="form-control", rows=3, placeholder="Document corrective action, configuration changes, or root cause analysis...") }}
-          </div>
-        </div>
-        <div class="modal-footer border-top">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-cyan">Save Updates</button>
-        </div>
-      </form>
-    </div>
+        <label class="form-label small fw-semibold" for="statusModalNote" id="statusModalNoteLabel">Note (optional)</label>
+        <textarea class="form-control" id="statusModalNote" name="note" rows="2" maxlength="2000" placeholder="Reason or additional context"></textarea>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-cyan" id="statusModalSubmit">Confirm</button>
+      </div>
+    </form>
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var modal = document.getElementById('statusModal');
+  if (!modal) return;
+  modal.addEventListener('show.bs.modal', function (e) {
+    var btn = e.relatedTarget;
+    var needsSummary = btn.dataset.needsSummary === 'true';
+    document.getElementById('statusModalValue').value = btn.dataset.status;
+    document.getElementById('statusModalTitle').textContent = btn.dataset.label + ' — {{ ticket.reference_id }}';
+    document.getElementById('statusModalSubmit').textContent = btn.dataset.label;
+    document.getElementById('statusModalSummaryGroup').classList.toggle('d-none', !needsSummary);
+    var summary = document.getElementById('statusModalSummary');
+    summary.required = needsSummary;
+    summary.disabled = !needsSummary;
+    document.getElementById('statusModalNoteLabel').textContent = needsSummary ? 'Note (optional)' : 'Reason for reopening (optional)';
+  });
+})();
+</script>
 {% endblock %}

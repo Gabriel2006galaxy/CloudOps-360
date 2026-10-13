@@ -1,170 +1,85 @@
 {% extends "base.html" %}
-
-{% block title %}CloudOps 360 — Intelligent IT Operations. Secure by Design{% endblock %}
+{% block title %}Intelligent IT Operations{% endblock %}
 
 {% block content %}
-<div class="py-5">
-  <!-- Hero Section -->
+<div class="py-4 py-lg-5">
   <div class="row align-items-center mb-5 g-5">
     <div class="col-lg-7">
       <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-info-subtle border border-info mb-3">
-        <i class="bi bi-shield-check text-info"></i>
-        <span class="small fw-semibold text-info">AWS Cloud Computing Lab — Enterprise Architecture</span>
+        <i class="bi bi-cloud-check text-info" aria-hidden="true"></i>
+        <span class="small fw-semibold text-info">IT Service &amp; Incident Management on AWS</span>
       </div>
-      <h1 class="display-4 fw-bold mb-3 brand-font">
-        CloudOps <span class="text-info">360</span>
-      </h1>
-      <h2 class="h4 text-muted mb-4 fw-normal">
-        Intelligent IT Operations. Secure by Design.
-      </h2>
+      <h1 class="display-4 fw-bold mb-3 brand-font">CloudOps <span class="text-info">360</span></h1>
+      <p class="h4 text-muted mb-4 fw-normal">Intelligent IT Operations. Secure by Design.</p>
       <p class="lead text-secondary mb-4" style="line-height: 1.7;">
-        A high-performance IT Service & Incident Management platform built for enterprise cloud operations. Featuring server-side Role-Based Access Control, Amazon EFS multi-instance shared diagnostic storage, Amazon RDS MySQL relational persistence, automated SLA deadline tracking, and comprehensive audit forensics.
+        Report incidents, route them to the right technician, track every SLA and keep a complete audit trail —
+        with role-based access enforced on the server, attachments on shared Amazon EFS storage and data in Amazon RDS for MySQL.
       </p>
-
       <div class="d-flex flex-wrap gap-3 mb-4">
-        <a href="{{ url_for('auth.login') }}" class="btn btn-cyan btn-lg px-4 shadow">
-          <i class="bi bi-box-arrow-in-right me-2"></i> Launch Application
-        </a>
-        <a href="#lab-milestones" class="btn btn-outline-secondary btn-lg px-4">
-          <i class="bi bi-diagram-3 me-2"></i> Lab Milestones
-        </a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-cyan btn-lg px-4 shadow"><i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i>Sign In</a>
+        {% if allow_registration %}
+        <a href="{{ url_for('auth.register') }}" class="btn btn-outline-secondary btn-lg px-4"><i class="bi bi-person-plus me-2" aria-hidden="true"></i>Create account</a>
+        {% endif %}
       </div>
-
-      <div class="d-flex align-items-center gap-4 text-muted small pt-2">
-        <div><i class="bi bi-check2-circle text-success me-1"></i> EC2 Linux Ready</div>
-        <div><i class="bi bi-check2-circle text-success me-1"></i> Amazon RDS Compatible</div>
-        <div><i class="bi bi-check2-circle text-success me-1"></i> Amazon EFS Shared Mounts</div>
+      <div class="d-flex flex-wrap align-items-center gap-4 text-muted small pt-2">
+        <div><i class="bi bi-hdd-network text-info me-1" aria-hidden="true"></i>Amazon EC2 · Nginx · Gunicorn</div>
+        <div><i class="bi bi-database text-warning me-1" aria-hidden="true"></i>Amazon RDS for MySQL</div>
+        <div><i class="bi bi-folder-symlink text-success me-1" aria-hidden="true"></i>Amazon EFS</div>
       </div>
     </div>
 
-    <!-- Quick Access / Architecture Spotlight Card -->
     <div class="col-lg-5">
-      <div class="card card-premium p-4 shadow-lg border-info">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <h5 class="mb-0 fw-bold"><i class="bi bi-key-fill text-info me-2"></i> Demo Role Access</h5>
-          <span class="badge bg-success-subtle text-success border border-success">Ready</span>
-        </div>
-        <p class="small text-muted mb-3">
-          Experience the strict server-side RBAC data isolation. Each role possesses distinct permissions and views.
-        </p>
-
-        <div class="list-group list-group-flush mb-4">
-          <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between align-items-center">
-            <div>
-              <strong class="d-block text-main">Administrator</strong>
-              <small class="text-muted">admin / AdminPass123!</small>
-            </div>
-            <span class="badge bg-danger">Full Control</span>
-          </div>
-          <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between align-items-center">
-            <div>
-              <strong class="d-block text-main">Support Technician</strong>
-              <small class="text-muted">tech_sarah / TechPass123!</small>
-            </div>
-            <span class="badge bg-primary">Queue & SLA</span>
-          </div>
-          <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between align-items-center">
-            <div>
-              <strong class="d-block text-main">Employee</strong>
-              <small class="text-muted">emp_jordan / EmpPass123!</small>
-            </div>
-            <span class="badge bg-secondary">Self-Service</span>
-          </div>
-        </div>
-
-        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-info w-100 fw-bold">
-          Proceed to Sign In <i class="bi bi-arrow-right ms-1"></i>
-        </a>
+      <div class="card card-premium p-4 shadow-lg">
+        <h2 class="h5 fw-bold mb-3"><i class="bi bi-diagram-3 text-info me-2" aria-hidden="true"></i>Incident lifecycle</h2>
+        <ol class="list-unstyled mb-0 small">
+          {% for step, text, icon in [
+            ('Open', 'Employee reports the incident with screenshots or logs.', 'bi-ticket-detailed'),
+            ('Assigned', 'A technician claims it, or an administrator assigns it.', 'bi-person-check'),
+            ('In Progress', 'Troubleshooting with public replies and private internal notes.', 'bi-gear-wide-connected'),
+            ('Resolved', 'Resolution summary recorded; SLA attainment measured.', 'bi-check2-circle'),
+            ('Closed', 'Reporter confirms — or reopens if the issue returns.', 'bi-lock')] %}
+          <li class="d-flex gap-3 {% if not loop.last %}mb-3{% endif %}">
+            <span class="stat-icon-wrapper bg-info-subtle text-info flex-shrink-0" style="width: 38px; height: 38px; font-size: 1.1rem;"><i class="bi {{ icon }}" aria-hidden="true"></i></span>
+            <div><div class="fw-semibold">{{ step }}</div><div class="text-muted">{{ text }}</div></div>
+          </li>
+          {% endfor %}
+        </ol>
       </div>
     </div>
   </div>
 
-  <!-- Key Architecture Pillars -->
   <div class="row g-4 mb-5">
-    <div class="col-md-4">
+    {% for title, text, icon, tone in [
+      ('Role-based access', 'Employees see only their own tickets; technicians see their assignments and the open queue; administrators manage everything. Every check runs on the server.', 'bi-shield-lock', 'danger'),
+      ('SLA engine', 'Configurable first-response and resolution targets per priority, live countdowns, overdue alerts and compliance reporting.', 'bi-stopwatch', 'success'),
+      ('Secure attachments', 'Type and content validation, generated file names, size limits, checksums and authorized downloads from shared EFS storage.', 'bi-paperclip', 'info'),
+      ('Audit &amp; notifications', 'Sign-ins, denials, assignments, status and role changes are audited; users get in-app notifications for what matters to them.', 'bi-journal-check', 'warning')] %}
+    <div class="col-md-6 col-xl-3">
       <div class="card card-premium h-100 p-4">
-        <div class="stat-icon-wrapper bg-info-subtle text-info mb-3">
-          <i class="bi bi-hdd-network"></i>
-        </div>
-        <h5 class="fw-bold mb-2">Amazon EFS Shared Storage</h5>
-        <p class="text-muted small mb-0">
-          Diagnostic attachments and crash logs persist across scaled EC2 worker nodes using an abstract file storage layer supporting POSIX EFS network mounts with path-traversal prevention.
-        </p>
+        <div class="stat-icon-wrapper bg-{{ tone }}-subtle text-{{ tone }} mb-3"><i class="bi {{ icon }}" aria-hidden="true"></i></div>
+        <h2 class="h6 fw-bold mb-2">{{ title|safe }}</h2>
+        <p class="text-muted small mb-0">{{ text }}</p>
       </div>
     </div>
-    <div class="col-md-4">
-      <div class="card card-premium h-100 p-4">
-        <div class="stat-icon-wrapper bg-success-subtle text-success mb-3">
-          <i class="bi bi-stopwatch"></i>
-        </div>
-        <h5 class="fw-bold mb-2">Automated SLA Policy Engine</h5>
-        <p class="text-muted small mb-0">
-          Configurable response and resolution deadlines per priority tier (Critical: 4h, High: 12h, Medium: 24h, Low: 72h) with automated overdue alerts and resolution tracking.
-        </p>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card card-premium h-100 p-4">
-        <div class="stat-icon-wrapper bg-danger-subtle text-danger mb-3">
-          <i class="bi bi-shield-lock"></i>
-        </div>
-        <h5 class="fw-bold mb-2">Role Isolation & Internal Notes</h5>
-        <p class="text-muted small mb-0">
-          Strict backend authorization prevents unauthorized ticket visibility. Internal technician troubleshooting notes remain completely confidential and hidden from employees.
-        </p>
-      </div>
-    </div>
+    {% endfor %}
   </div>
 
-  <!-- Three-Lab Demonstration Milestones -->
-  <div class="card card-premium p-4 p-md-5 mb-4" id="lab-milestones">
-    <h3 class="fw-bold mb-4 brand-font text-center">Three-Lab Curriculum Progress</h3>
+  <div class="card card-premium p-4 p-md-5" id="labs">
+    <h2 class="h4 fw-bold mb-1 brand-font text-center">Three-lab roadmap</h2>
+    <p class="text-muted small text-center mb-4">Each lab extends the same codebase. See <code>docs/lab_guides.md</code> for the demonstration checklists.</p>
     <div class="row g-4">
+      {% for lab, title, items in [
+        ('Lab 1', 'Dynamic website on EC2', ['Flask app with roles and dashboards', 'Ticket creation, listing and workflow', 'MySQL persistence and migrations', 'Nginx + Gunicorn on Amazon EC2']),
+        ('Lab 2', 'Amazon RDS + Amazon EFS', ['Private RDS for MySQL database', 'EFS mounted on EC2 for attachments', 'Metadata in RDS, files on EFS', 'Shared files across instances']),
+        ('Lab 3', 'Security + integration', ['IAM instance role, Secrets Manager', 'HTTPS/TLS and encrypted storage', 'Private networking, RBAC, audit logs', 'SLA analytics and denied-access demos'])] %}
       <div class="col-md-4">
         <div class="p-3 border rounded-3 bg-body-tertiary h-100">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <span class="badge bg-primary">Lab 1</span>
-            <span class="badge bg-success-subtle text-success border border-success">Completed</span>
-          </div>
-          <h5 class="fw-bold mb-2">Dynamic Web Application</h5>
-          <ul class="text-muted small ps-3 mb-0">
-            <li>Flask application factory & Blueprints</li>
-            <li>Role-based dashboards & navigation</li>
-            <li>Relational MySQL schema & migrations</li>
-            <li>Incident lifecycle state transitions</li>
-          </ul>
+          <span class="badge bg-info text-dark mb-2">{{ lab }}</span>
+          <h3 class="h6 fw-bold mb-2">{{ title }}</h3>
+          <ul class="text-muted small ps-3 mb-0">{% for i in items %}<li>{{ i }}</li>{% endfor %}</ul>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="p-3 border rounded-3 bg-body-tertiary h-100">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <span class="badge bg-info text-dark">Lab 2</span>
-            <span class="badge bg-success-subtle text-success border border-success">Completed</span>
-          </div>
-          <h5 class="fw-bold mb-2">Amazon RDS & EFS Storage</h5>
-          <ul class="text-muted small ps-3 mb-0">
-            <li>Amazon RDS MySQL connection configuration</li>
-            <li>Amazon EFS shared attachment storage</li>
-            <li>Safe UUID-based upload validation</li>
-            <li>Authorized streaming file downloads</li>
-          </ul>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="p-3 border rounded-3 bg-body-tertiary h-100">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <span class="badge bg-warning text-dark">Lab 3</span>
-            <span class="badge bg-success-subtle text-success border border-success">Completed</span>
-          </div>
-          <h5 class="fw-bold mb-2">Security, SLA & Forensics</h5>
-          <ul class="text-muted small ps-3 mb-0">
-            <li>AWS Secrets Manager fallback integration</li>
-            <li>Confidential internal technician notes</li>
-            <li>Immutable audit logging & forensics</li>
-            <li>Configurable SLA engine & metrics</li>
-          </ul>
-        </div>
-      </div>
+      {% endfor %}
     </div>
   </div>
 </div>

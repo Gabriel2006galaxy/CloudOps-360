@@ -1,83 +1,67 @@
 from flask import Blueprint, abort, flash, redirect, url_for
-from flask_login import login_required, current_user
+from flask_login import current_user, login_required
+
 from app.extensions import db
 from app.models import Attachment
-from app.services.storage import get_secure_attachment_response, delete_attachment_file
+from app.services import permissions as perm
 from app.services.audit import log_audit_event
+from app.services.storage import get_storage
 
 attachments_bp = Blueprint('attachments', __name__, url_prefix='/attachments')
+
+
+def _get_attachment(attachment_id):
+    attachment = db.session.get(Attachment, attachment_id)
+    if attachment is None:
+        abort(404)
+    return attachment
 
 
 @attachments_bp.route('/<int:attachment_id>/download', methods=['GET'])
 @login_required
 def download(attachment_id):
-    """
-    Downloads an attachment file from EFS or local storage.
-    
-    Security & RBAC Controls:
-    1. Only authenticated users can access.
-    2. User must be an Administrator, Support Technician, or the original creator/uploader.
-    3. Serves with sanitized filename and safe attachment headers to prevent XSS.
-    4. Logs download action for compliance audit.
-    """
-    attachment = Attachment.query.get_or_404(attachment_id)
-    ticket = attachment.ticket
+    """Authorized download from EFS/local storage.
 
-    # Authorization Check
-    authorized = (
-        current_user.is_admin or
-        current_user.is_technician or
-        ticket.creator_id == current_user.id or
-        attachment.user_id == current_user.id
-    )
-
-    if not authorized:
-        log_audit_event(
-            action='ATTACHMENT_UNAUTHORIZED_DOWNLOAD_ATTEMPT',
-            entity_type='Attachment',
-            entity_id=attachment.id,
-            details=f"User '{current_user.username}' attempted unauthorized download of file '{attachment.original_filename}'"
-        )
+    Access follows ticket visibility (creator, assigned technician, admin), the
+    file is always sent as an attachment with nosniff and a sandbox CSP, and
+    every download or denial is audited.
+    """
+    attachment = _get_attachment(attachment_id)
+    if not perm.can_download_attachment(current_user, attachment):
+        log_audit_event('ATTACHMENT_UNAUTHORIZED_DOWNLOAD', 'Attachment', attachment.id,
+                        f"'{current_user.username}' denied download of attachment #{attachment.id} "
+                        f"on {attachment.ticket.reference_id}")
         abort(403)
 
-    log_audit_event(
-        action='ATTACHMENT_DOWNLOAD',
-        entity_type='Attachment',
-        entity_id=attachment.id,
-        details=f"File '{attachment.original_filename}' downloaded by {current_user.username}"
-    )
+    try:
+        response = get_storage().send(attachment.storage_path, attachment.original_filename, attachment.mime_type)
+    except FileNotFoundError:
+        log_audit_event('ATTACHMENT_FILE_MISSING', 'Attachment', attachment.id,
+                        f"Stored file for attachment #{attachment.id} is missing from storage")
+        abort(404)
 
-    return get_secure_attachment_response(attachment.filename, attachment.original_filename)
+    log_audit_event('ATTACHMENT_DOWNLOAD', 'Attachment', attachment.id,
+                    f"'{attachment.original_filename}' downloaded by {current_user.username}")
+    return response
 
 
 @attachments_bp.route('/<int:attachment_id>/delete', methods=['POST'])
 @login_required
 def delete(attachment_id):
-    """Deletes an attachment file and its database record."""
-    attachment = Attachment.query.get_or_404(attachment_id)
+    """Deletes an attachment's file and database row (admin or uploader only)."""
+    attachment = _get_attachment(attachment_id)
     ticket = attachment.ticket
-
-    # Only admin or original uploader can delete
-    if not (current_user.is_admin or attachment.user_id == current_user.id):
+    if not perm.can_delete_attachment(current_user, attachment):
+        log_audit_event('ATTACHMENT_UNAUTHORIZED_DELETE', 'Attachment', attachment.id,
+                        f"'{current_user.username}' denied deletion of attachment #{attachment.id}")
         abort(403)
 
-    stored_name = attachment.filename
-    orig_name = attachment.original_filename
-    ref_id = ticket.reference_id
-
-    # Remove physical file from EFS / storage
-    delete_attachment_file(stored_name)
-
-    # Delete DB record
+    key, name, ref = attachment.storage_path, attachment.original_filename, ticket.reference_id
     db.session.delete(attachment)
+    log_audit_event('ATTACHMENT_DELETE', 'Attachment', attachment_id,
+                    f"'{name}' deleted from {ref} by {current_user.username}", commit=False)
     db.session.commit()
+    get_storage().delete(key)  # remove the bytes only after the metadata delete committed
 
-    log_audit_event(
-        action='ATTACHMENT_DELETE',
-        entity_type='Attachment',
-        entity_id=attachment_id,
-        details=f"Attachment '{orig_name}' deleted by {current_user.username}"
-    )
-
-    flash(f"Attachment '{orig_name}' was deleted.", 'info')
-    return redirect(url_for('tickets.detail', reference_id=ref_id))
+    flash(f"Attachment '{name}' deleted.", 'info')
+    return redirect(url_for('tickets.detail', reference_id=ref) + '#attachments')

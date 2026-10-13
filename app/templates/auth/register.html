@@ -1,70 +1,33 @@
 {% extends "base.html" %}
-
-{% block title %}Register Account — CloudOps 360{% endblock %}
+{% from "_macros.html" import field %}
+{% block title %}Create Account{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center py-5">
-  <div class="col-md-7 col-lg-6 col-xl-5">
-    <div class="card card-premium p-4 shadow-lg">
-      <div class="text-center mb-4">
-        <h3 class="fw-bold brand-font mb-1">Create Account</h3>
-        <p class="text-muted small">Register for CloudOps 360 IT Service Platform</p>
-      </div>
-
-      <form method="POST" action="{{ url_for('auth.register') }}">
-        {{ form.hidden_tag() }}
-
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Full Name</label>
-          {{ form.full_name(class="form-control" + (" is-invalid" if form.full_name.errors else ""), placeholder="e.g. Jordan Hayes") }}
-          {% for error in form.full_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+<div class="auth-wrapper">
+  <div class="row justify-content-center w-100 mx-0">
+    <div class="col-md-8 col-lg-6 col-xl-5">
+      <div class="card card-premium p-4 shadow-lg">
+        <div class="text-center mb-4">
+          <div class="brand-icon-box mx-auto mb-3"><i class="bi bi-person-plus-fill fs-4" aria-hidden="true"></i></div>
+          <h1 class="h3 fw-bold brand-font mb-1">Create an employee account</h1>
+          <p class="text-muted small mb-0">Self-registration always creates an <strong>Employee</strong> account. Technician and administrator roles are granted by an administrator.</p>
         </div>
-
-        <div class="row g-2 mb-3">
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Username</label>
-            {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), placeholder="jhayes") }}
-            {% for error in form.username.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+          {{ field(form.full_name, required=True, autocomplete='name') }}
+          <div class="row g-2">
+            <div class="col-sm-6">{{ field(form.username, required=True, autocomplete='username') }}</div>
+            <div class="col-sm-6">{{ field(form.department, autocomplete='organization-title') }}</div>
           </div>
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Department</label>
-            {{ form.department(class="form-control" + (" is-invalid" if form.department.errors else ""), placeholder="Finance, IT, Ops") }}
-            {% for error in form.department.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          {{ field(form.email, required=True, autocomplete='email', type='email') }}
+          <div class="row g-2">
+            <div class="col-sm-6">{{ field(form.password, required=True, autocomplete='new-password') }}</div>
+            <div class="col-sm-6">{{ field(form.confirm_password, required=True, autocomplete='new-password') }}</div>
           </div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Email Address</label>
-          {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), placeholder="name@company.internal") }}
-          {% for error in form.email.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Account Role</label>
-          {{ form.role(class="form-select") }}
-          <div class="form-text small">Select role to simulate employee self-service or technician access.</div>
-        </div>
-
-        <div class="row g-2 mb-4">
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Password</label>
-            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Min 8 characters") }}
-            {% for error in form.password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Confirm Password</label>
-            {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else ""), placeholder="Repeat password") }}
-            {% for error in form.confirm_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-          </div>
-        </div>
-
-        <button type="submit" class="btn btn-cyan w-100 py-2 fw-semibold">
-          <i class="bi bi-person-check me-1"></i> Register Account
-        </button>
-      </form>
-
-      <div class="text-center mt-3 text-muted small">
-        Already registered? <a href="{{ url_for('auth.login') }}" class="text-info text-decoration-none">Sign in here</a>
+          <p class="form-text small mt-n2">At least 10 characters with upper-case, lower-case letters and a number.</p>
+          <button type="submit" class="btn btn-cyan w-100 py-2 fw-semibold"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Create Account</button>
+        </form>
+        <div class="text-center mt-3 small">Already registered? <a href="{{ url_for('auth.login') }}" class="text-info text-decoration-none fw-semibold">Sign in</a></div>
       </div>
     </div>
   </div>

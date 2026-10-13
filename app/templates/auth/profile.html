@@ -1,74 +1,50 @@
 {% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}Profile{% endblock %}
 
-{% block title %}User Profile — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Profile</li>
+</ol></nav>
+<h1 class="page-title fw-bold brand-font mb-4">Profile &amp; Security</h1>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center py-4">
-  <div class="col-md-8 col-lg-7">
-    <div class="card card-premium p-4 shadow">
-      <div class="d-flex align-items-center justify-content-between mb-4 border-bottom pb-3">
-        <div>
-          <h3 class="fw-bold brand-font mb-1">Account Settings</h3>
-          <p class="text-muted small mb-0">Manage profile identity and password credentials</p>
-        </div>
-        <span class="badge {{ current_user.role_badge_class }} fs-6">{{ current_user.role|capitalize }}</span>
-      </div>
-
-      <form method="POST" action="{{ url_for('auth.profile') }}">
-        {{ form.hidden_tag() }}
-
-        <div class="row g-3 mb-3">
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Username</label>
-            <input type="text" class="form-control" value="{{ current_user.username }}" disabled>
-            <small class="text-muted">Username cannot be changed.</small>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Email</label>
-            <input type="text" class="form-control" value="{{ current_user.email }}" disabled>
-            <small class="text-muted">Primary identity email.</small>
-          </div>
-        </div>
-
-        <div class="row g-3 mb-4">
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Full Name</label>
-            {{ form.full_name(class="form-control" + (" is-invalid" if form.full_name.errors else "")) }}
-            {% for error in form.full_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Department</label>
-            {{ form.department(class="form-control" + (" is-invalid" if form.department.errors else "")) }}
-            {% for error in form.department.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-          </div>
-        </div>
-
-        <h5 class="fw-bold mb-3 border-top pt-3">Security & Password</h5>
-        
-        <div class="mb-3">
-          <label class="form-label small fw-semibold">Current Password</label>
-          {{ form.current_password(class="form-control" + (" is-invalid" if form.current_password.errors else ""), placeholder="Required only if changing password") }}
-          {% for error in form.current_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-        </div>
-
-        <div class="row g-3 mb-4">
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">New Password</label>
-            {{ form.new_password(class="form-control" + (" is-invalid" if form.new_password.errors else ""), placeholder="Leave blank to keep unchanged") }}
-            {% for error in form.new_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small fw-semibold">Confirm New Password</label>
-            {{ form.confirm_new_password(class="form-control" + (" is-invalid" if form.confirm_new_password.errors else ""), placeholder="Confirm new password") }}
-            {% for error in form.confirm_new_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-          </div>
-        </div>
-
-        <button type="submit" class="btn btn-cyan px-4">
-          <i class="bi bi-save me-1"></i> Save Changes
-        </button>
-      </form>
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card card-premium p-4 text-center h-100">
+      <span class="avatar mx-auto mb-3" style="width: 72px; height: 72px; font-size: 1.5rem;" aria-hidden="true">{{ current_user.initials }}</span>
+      <h2 class="h5 fw-bold mb-0">{{ current_user.full_name }}</h2>
+      <div class="text-muted small mb-2">{{ current_user.email }}</div>
+      <div><span class="badge {{ current_user.role_badge_class }}">{{ current_user.role_label }}</span></div>
+      <hr>
+      <dl class="row small text-start mb-0">
+        <dt class="col-6 text-muted fw-normal">Username</dt><dd class="col-6"><code>{{ current_user.username }}</code></dd>
+        <dt class="col-6 text-muted fw-normal">Member since</dt><dd class="col-6">{{ current_user.created_at|dateformat }}</dd>
+        <dt class="col-6 text-muted fw-normal">Last sign-in</dt><dd class="col-6">{{ current_user.last_login_at|datetimeformat }}</dd>
+      </dl>
+      <p class="small text-muted mt-3 mb-0"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Your role and account status can only be changed by an administrator.</p>
     </div>
+  </div>
+  <div class="col-lg-8">
+    <form method="POST" class="card card-premium p-4" novalidate>
+      {{ form.hidden_tag() }}
+      <h2 class="h6 fw-bold text-uppercase text-muted mb-3">Personal details</h2>
+      <div class="row g-2">
+        <div class="col-md-6">{{ field(form.full_name, required=True, autocomplete='name') }}</div>
+        <div class="col-md-6">{{ field(form.department) }}</div>
+      </div>
+      <h2 class="h6 fw-bold text-uppercase text-muted mt-2 mb-3">Change password <span class="fw-normal text-lowercase">(optional)</span></h2>
+      {{ field(form.current_password, autocomplete='current-password') }}
+      <div class="row g-2">
+        <div class="col-md-6">{{ field(form.new_password, autocomplete='new-password', help='At least 10 characters with upper-case, lower-case letters and a number.') }}</div>
+        <div class="col-md-6">{{ field(form.confirm_new_password, autocomplete='new-password') }}</div>
+      </div>
+      <div class="d-flex justify-content-end">
+        <button type="submit" class="btn btn-cyan"><i class="bi bi-save me-1" aria-hidden="true"></i>Save Changes</button>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}

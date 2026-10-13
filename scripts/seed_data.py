@@ -1,299 +1,195 @@
-from datetime import datetime, timezone, timedelta
+"""Seed data for CloudOps 360.
+
+* seed_reference_data(): categories + SLA policies. Creates no users; safe anywhere.
+* seed_database():       reference data + DEVELOPMENT demo accounts and incidents.
+                          Run explicitly with `flask seed-db`; refused in production.
+
+Demo incidents are inserted as real database rows (with SLA targets, history,
+comments and an internal note) so dashboards show genuine computed metrics.
+"""
+import random
+from datetime import timedelta
+
 from app.extensions import db
 from app.models import (
-    User, UserRole, TicketCategory, SLAPolicy,
-    Ticket, TicketStatus, TicketPriority, Comment,
-    TicketStatusHistory, AuditLog, Notification
+    AuditLog, Comment, SLAPolicy, Ticket, TicketCategory, TicketPriority, TicketStatus,
+    TicketStatusHistory, User, UserRole, utcnow,
 )
 from app.services.sla import calculate_sla_due_dates
 
+CATEGORIES = [
+    ("Cloud Infrastructure (EC2/VPC)", "Compute instances, load balancers, auto scaling and VPC networking."),
+    ("Network & Connectivity", "Corporate VPN, DNS, NAT gateways and remote connectivity."),
+    ("Identity & Access (IAM/SSO)", "Accounts, IAM roles, MFA, single sign-on and access requests."),
+    ("Database & Storage (RDS/EFS)", "Amazon RDS MySQL, backups, Amazon EFS shared storage."),
+    ("Security & Compliance", "Security groups, vulnerabilities, alerts and compliance findings."),
+    ("End-User Computing", "Laptops, peripherals, email and productivity software."),
+]
 
-def seed_database():
-    """Seeds baseline reference data, demo users, realistic incident tickets, and SLA targets."""
-    print("[Seed] Initializing database tables...")
+SLA_POLICIES = [
+    (TicketPriority.CRITICAL, 1, 4, "Business-critical outage; immediate 24x7 response."),
+    (TicketPriority.HIGH, 4, 12, "Major degradation with significant operational impact."),
+    (TicketPriority.MEDIUM, 8, 24, "Standard incident with a workaround available."),
+    (TicketPriority.LOW, 24, 72, "Minor issue, question or planned request."),
+]
+
+DEMO_USERS = [
+    # username, email, full name, role, department, password (DEVELOPMENT ONLY)
+    ('admin', 'admin@cloudops360.local', 'Alex Mercer', UserRole.ADMIN, 'Cloud Architecture & Security', 'AdminPass123!'),
+    ('tech_sarah', 'sarah@cloudops360.local', 'Sarah Connor', UserRole.TECHNICIAN, 'Tier 2 Infrastructure Support', 'TechPass123!'),
+    ('tech_marcus', 'marcus@cloudops360.local', 'Marcus Vance', UserRole.TECHNICIAN, 'Security Operations', 'TechPass123!'),
+    ('emp_jordan', 'jordan@cloudops360.local', 'Jordan Hayes', UserRole.EMPLOYEE, 'Finance & Billing', 'EmpPass123!'),
+    ('emp_elena', 'elena@cloudops360.local', 'Elena Rostova', UserRole.EMPLOYEE, 'Data Analytics', 'EmpPass123!'),
+]
+
+# title, description, category index, priority, final status, creator, technician, affected system, hours ago, resolve hours (None=open)
+DEMO_TICKETS = [
+    ("Production web tier CPU saturation and 504 errors",
+     "CloudWatch alarm: web tier EC2 instances above 92% CPU. Customers receive HTTP 504 from the checkout API.",
+     0, TicketPriority.CRITICAL, TicketStatus.IN_PROGRESS, 'emp_jordan', 'tech_sarah', 'ec2-prod-web-asg', 2, None),
+    ("Branch office VPN tunnel fails to establish",
+     "Remote office cannot complete IPsec phase 2 negotiation with the virtual private gateway since 08:00.",
+     1, TicketPriority.HIGH, TicketStatus.ASSIGNED, 'emp_elena', 'tech_marcus', 'vpn-gw-branch-03', 3, None),
+    ("RDS read replica lag above 180 seconds",
+     "Reporting replica shows replication lag of ~245s during nightly ETL, delaying invoice generation.",
+     3, TicketPriority.MEDIUM, TicketStatus.OPEN, 'emp_jordan', None, 'rds-mysql-replica-01', 1, None),
+    ("Renew TLS certificate for internal API domain",
+     "Certificate for the internal API expires in 10 days. Request renewal and validation.",
+     4, TicketPriority.MEDIUM, TicketStatus.RESOLVED, 'emp_elena', 'tech_sarah', 'api.internal', 50, 6),
+    ("Legacy S3 bucket missing public access block",
+     "Compliance scan flagged a legacy archive bucket without the account-level public access block.",
+     4, TicketPriority.CRITICAL, TicketStatus.IN_PROGRESS, 'emp_jordan', 'tech_marcus', 's3-legacy-archive', 30, None),
+    ("Laptop cannot connect to corporate Wi-Fi",
+     "After the OS update the laptop no longer authenticates to the corporate WPA2-Enterprise network.",
+     5, TicketPriority.LOW, TicketStatus.CLOSED, 'emp_elena', 'tech_sarah', 'LT-0442', 200, 20),
+    ("MFA device lost - need reset",
+     "Employee lost their phone and cannot complete MFA for SSO. Identity verified by manager.",
+     2, TicketPriority.HIGH, TicketStatus.CLOSED, 'emp_jordan', 'tech_marcus', 'sso-portal', 120, 3),
+    ("EFS mount slow on analytics instance",
+     "Listing the shared attachments directory takes > 20 seconds on one instance.",
+     3, TicketPriority.MEDIUM, TicketStatus.RESOLVED, 'emp_elena', 'tech_sarah', 'efs-attachments', 90, 30),
+    ("Request access to billing dashboard",
+     "Need read-only access to the billing analytics dashboard for the quarterly review.",
+     2, TicketPriority.LOW, TicketStatus.OPEN, 'emp_elena', None, 'billing-dashboard', 5, None),
+    ("Security group allows SSH from 0.0.0.0/0",
+     "Audit found a security group with SSH open to the internet on a staging instance.",
+     4, TicketPriority.HIGH, TicketStatus.RESOLVED, 'emp_jordan', 'tech_marcus', 'sg-staging-bastion', 160, 5),
+    ("Outlook keeps asking for password",
+     "Desktop mail client prompts for credentials every few minutes since yesterday.",
+     5, TicketPriority.LOW, TicketStatus.CLOSED, 'emp_jordan', 'tech_sarah', 'LT-0310', 300, 40),
+    ("Auto scaling group not launching new instances",
+     "Scaling activity fails with 'insufficient capacity' in us-east-1a during peak hours.",
+     0, TicketPriority.HIGH, TicketStatus.CLOSED, 'emp_elena', 'tech_sarah', 'ec2-batch-asg', 240, 9),
+]
+
+
+def seed_reference_data():
+    """Categories and SLA policies (idempotent)."""
     db.create_all()
-
-    # 1. Seed Categories
-    categories_data = [
-        ("Cloud Infrastructure (AWS EC2/S3/VPC)", "Issues regarding compute instances, elastic load balancers, auto-scaling and VPCs."),
-        ("Network & Connectivity (VPN/DNS)", "Corporate VPN connections, Route53, NAT Gateways, Direct Connect."),
-        ("Identity & Access (IAM/SSO)", "IAM roles, permission boundaries, single sign-on, and credential rotators."),
-        ("Database & Storage (RDS/EFS)", "Amazon RDS Aurora/MySQL engine, backups, read replicas, and Amazon EFS shared mounts."),
-        ("Security & Compliance", "Security groups, AWS WAF, GuardDuty alerts, and vulnerability remediation."),
-        ("Software & DevOps Tooling", "CI/CD pipelines, Docker environments, and internal service management tools.")
-    ]
-
-    category_map = {}
-    for name, desc in categories_data:
+    categories = {}
+    for name, desc in CATEGORIES:
         cat = TicketCategory.query.filter_by(name=name).first()
         if not cat:
             cat = TicketCategory(name=name, description=desc, is_active=True)
             db.session.add(cat)
             db.session.flush()
-        category_map[name] = cat
-
-    # 2. Seed SLA Policies
-    sla_data = [
-        (TicketPriority.CRITICAL, 1, 4, "Critical business service disruption requiring immediate 24x7 resolution."),
-        (TicketPriority.HIGH, 4, 12, "Major feature impaired or system degradation with significant operational impact."),
-        (TicketPriority.MEDIUM, 8, 24, "Standard IT service request or moderate issue with operational workaround."),
-        (TicketPriority.LOW, 24, 72, "Minor cosmetic inquiry, non-urgent maintenance, or planned provisioning.")
-    ]
-
-    for priority, resp_h, resol_h, desc in sla_data:
-        policy = SLAPolicy.query.filter_by(priority=priority).first()
-        if not policy:
-            policy = SLAPolicy(
-                priority=priority,
-                response_time_hours=resp_h,
-                resolution_time_hours=resol_h,
-                description=desc
-            )
-            db.session.add(policy)
-
+        categories[name] = cat
+    for priority, resp, resol, desc in SLA_POLICIES:
+        if not SLAPolicy.query.filter_by(priority=priority).first():
+            db.session.add(SLAPolicy(priority=priority, response_time_hours=resp,
+                                     resolution_time_hours=resol, description=desc))
     db.session.commit()
+    return [categories[name] for name, _ in CATEGORIES]
 
-    # 3. Seed Demo Users
-    users_data = [
-        {
-            'username': 'admin',
-            'email': 'admin@cloudops360.internal',
-            'full_name': 'Alex Mercer',
-            'role': UserRole.ADMIN,
-            'department': 'Cloud Architecture & Security',
-            'password': 'AdminPass123!'
-        },
-        {
-            'username': 'tech_sarah',
-            'email': 'tech.sarah@cloudops360.internal',
-            'full_name': 'Sarah Connor',
-            'role': UserRole.TECHNICIAN,
-            'department': 'Tier 2 Cloud Infrastructure Support',
-            'password': 'TechPass123!'
-        },
-        {
-            'username': 'tech_marcus',
-            'email': 'tech.marcus@cloudops360.internal',
-            'full_name': 'Marcus Vance',
-            'role': UserRole.TECHNICIAN,
-            'department': 'Security & Compliance Operations',
-            'password': 'TechPass123!'
-        },
-        {
-            'username': 'emp_jordan',
-            'email': 'emp.jordan@cloudops360.internal',
-            'full_name': 'Jordan Hayes',
-            'role': UserRole.EMPLOYEE,
-            'department': 'Finance & Billing Engineering',
-            'password': 'EmpPass123!'
-        },
-        {
-            'username': 'emp_elena',
-            'email': 'emp.elena@cloudops360.internal',
-            'full_name': 'Elena Rostova',
-            'role': UserRole.EMPLOYEE,
-            'department': 'Analytics & Data Pipeline',
-            'password': 'EmpPass123!'
-        }
-    ]
 
-    user_map = {}
-    for udata in users_data:
-        user = User.query.filter_by(username=udata['username']).first()
+def _seed_users():
+    users = {}
+    for username, email, full_name, role, dept, password in DEMO_USERS:
+        user = User.query.filter_by(username=username).first()
         if not user:
-            user = User(
-                username=udata['username'],
-                email=udata['email'],
-                full_name=udata['full_name'],
-                role=udata['role'],
-                department=udata['department'],
-                is_active=True
-            )
-            user.set_password(udata['password'])
+            user = User(username=username, email=email, full_name=full_name, role=role,
+                        department=dept, is_active=True)
+            user.set_password(password)
             db.session.add(user)
             db.session.flush()
-        user_map[udata['username']] = user
+        users[username] = user
+    db.session.commit()
+    return users
 
+
+def _seed_tickets(categories, users):
+    rng = random.Random(360)
+    now = utcnow()
+    path = [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CLOSED]
+    for (title, desc, cat_idx, priority, final_status, creator_name, tech_name, system,
+         hours_ago, resolve_hours) in DEMO_TICKETS:
+        creator, tech = users[creator_name], users.get(tech_name) if tech_name else None
+        created = now - timedelta(hours=hours_ago, minutes=rng.randint(0, 50))
+        resp_due, resol_due = calculate_sla_due_dates(priority, created)
+        ticket = Ticket(reference_id=f"SEED-{rng.getrandbits(48):x}", title=title, description=desc,
+                        category_id=categories[cat_idx].id, priority=priority, status=final_status,
+                        creator_id=creator.id, technician_id=tech.id if tech else None,
+                        affected_system=system, department=creator.department,
+                        created_at=created, updated_at=created,
+                        response_due_at=resp_due, resolution_due_at=resol_due)
+        db.session.add(ticket)
+        db.session.flush()
+        ticket.reference_id = f"INC-{created.year}-{ticket.id:05d}"
+
+        # Replay the lifecycle so status history is consistent with the final state
+        steps = path[:path.index(final_status) + 1]
+        moment = created
+        db.session.add(TicketStatusHistory(ticket_id=ticket.id, changed_by_id=creator.id, old_status='New',
+                                           new_status=TicketStatus.OPEN, notes='Incident reported.', created_at=created))
+        total = timedelta(hours=resolve_hours) if resolve_hours else timedelta(hours=hours_ago) * 0.6
+        for prev, nxt in zip(steps, steps[1:]):
+            if nxt == TicketStatus.ASSIGNED:
+                moment = created + timedelta(minutes=rng.randint(10, 40))
+                actor, note = users['admin'], f"Assigned to {tech.full_name}."
+            elif nxt == TicketStatus.IN_PROGRESS:
+                moment = created + total * 0.2
+                actor, note = tech, 'Investigation started.'
+                ticket.first_responded_at = moment
+            elif nxt == TicketStatus.RESOLVED:
+                moment = created + total
+                actor, note = tech, 'Root cause identified and fix applied.'
+                ticket.resolved_at = moment
+                ticket.resolution_summary = (f"Resolved by {tech.full_name}: root cause identified on {system}, "
+                                             "corrective change applied and verified with the reporter.")
+            else:  # CLOSED
+                moment = moment + timedelta(hours=rng.randint(2, 20))
+                actor, note = creator, 'Resolution confirmed by reporter.'
+                ticket.closed_at = moment
+            db.session.add(TicketStatusHistory(ticket_id=ticket.id, changed_by_id=actor.id, old_status=prev,
+                                               new_status=nxt, notes=note, created_at=moment))
+        ticket.updated_at = moment
+
+        if tech and final_status != TicketStatus.ASSIGNED:
+            db.session.add(Comment(ticket_id=ticket.id, user_id=tech.id, is_internal=False,
+                                   content='Acknowledged - investigating now. I will post updates here.',
+                                   created_at=created + total * 0.2))
+            db.session.add(Comment(ticket_id=ticket.id, user_id=tech.id, is_internal=True,
+                                   content=f"[Internal] Checked CloudWatch metrics and recent change log for {system}. "
+                                           "Suspect a configuration drift from last deploy; do not share until confirmed.",
+                                   created_at=created + total * 0.3))
+    db.session.add(AuditLog(user_id=users['admin'].id, action='SYSTEM_SEED_INITIALIZED', entity_type='System',
+                            entity_id='seed', details='Development seed data created via flask seed-db', created_at=now))
     db.session.commit()
 
-    # 4. Seed Realistic Incident Tickets
-    now = datetime.now(timezone.utc)
-    
-    # Check if tickets already exist
-    if Ticket.query.count() == 0:
-        tickets_info = [
-            {
-                'ref': 'INC-2026-00001',
-                'title': 'Production EC2 Cluster CPU Throttling and Latency Spike',
-                'description': 'Automated CloudWatch alarm triggered. EC2 instances in us-east-1a web tier experiencing >92% sustained CPU utilization. HTTP 504 gateway timeouts observed across client endpoints.',
-                'cat': 'Cloud Infrastructure (AWS EC2/S3/VPC)',
-                'priority': TicketPriority.CRITICAL,
-                'status': TicketStatus.IN_PROGRESS,
-                'creator': user_map['emp_jordan'],
-                'tech': user_map['tech_sarah'],
-                'system': 'aws-ec2-prod-web-asg',
-                'dept': 'Finance & Billing Engineering',
-                'created_offset_h': 2,
-                'resolved': False
-            },
-            {
-                'ref': 'INC-2026-00002',
-                'title': 'Corporate IPsec VPN Tunnel Handshake Failures',
-                'description': 'Remote branch offices unable to establish Phase 2 IKE Security Associations with AWS Virtual Private Gateway. Border routers failing traffic forwarding.',
-                'cat': 'Network & Connectivity (VPN/DNS)',
-                'priority': TicketPriority.HIGH,
-                'status': TicketStatus.ASSIGNED,
-                'creator': user_map['emp_elena'],
-                'tech': user_map['tech_marcus'],
-                'system': 'vpn-gw-vpg-03918a',
-                'dept': 'Analytics & Data Pipeline',
-                'created_offset_h': 3,
-                'resolved': False
-            },
-            {
-                'ref': 'INC-2026-00003',
-                'title': 'Amazon RDS MySQL Replication Lag Exceeding 180s',
-                'description': 'Reporting replica db-analytics-ro-1 shows seconds_behind_master of 245 seconds during heavy batch ETL query processing. Impacting financial billing generation.',
-                'cat': 'Database & Storage (RDS/EFS)',
-                'priority': TicketPriority.MEDIUM,
-                'status': TicketStatus.OPEN,
-                'creator': user_map['emp_jordan'],
-                'tech': None,
-                'system': 'rds-mysql-prod-replica-01',
-                'dept': 'Finance & Billing Engineering',
-                'created_offset_h': 1,
-                'resolved': False
-            },
-            {
-                'ref': 'INC-2026-00004',
-                'title': 'SSL/TLS Certificate Renewal for API Gateway Domains',
-                'description': 'Annual TLS wildcard certificate renewal verification across Route53 and ACM endpoints. Verification tested and completed.',
-                'cat': 'Security & Compliance',
-                'priority': TicketPriority.MEDIUM,
-                'status': TicketStatus.RESOLVED,
-                'creator': user_map['emp_elena'],
-                'tech': user_map['tech_sarah'],
-                'system': 'api.cloudops360.internal',
-                'dept': 'Analytics & Data Pipeline',
-                'created_offset_h': 48,
-                'resolved': True,
-                'resolution_summary': 'Successfully renewed via AWS Certificate Manager (ACM) DNS validation. Validated across CloudFront distributions with zero downtime.'
-            },
-            {
-                'ref': 'INC-2026-00005',
-                'title': 'Legacy S3 Bucket Public Access Block Audit Remediation',
-                'description': 'Automated compliance scan flagged an unencrypted legacy archive bucket missing the S3 Account Public Access Block. Needs emergency hardening.',
-                'cat': 'Security & Compliance',
-                'priority': TicketPriority.CRITICAL,
-                'status': TicketStatus.IN_PROGRESS,
-                'creator': user_map['emp_jordan'],
-                'tech': user_map['tech_marcus'],
-                'system': 's3-legacy-financial-archive-bucket',
-                'dept': 'Finance & Billing Engineering',
-                'created_offset_h': 36,  # 36h ago -> Resolution SLA is 4h -> This ticket is OVERDUE!
-                'resolved': False
-            }
-        ]
 
-        for tdata in tickets_info:
-            created_at = now - timedelta(hours=tdata['created_offset_h'])
-            resp_due, resol_due = calculate_sla_due_dates(tdata['priority'], created_at)
-
-            ticket = Ticket(
-                reference_id=tdata['ref'],
-                title=tdata['title'],
-                description=tdata['description'],
-                category_id=category_map[tdata['cat']].id,
-                priority=tdata['priority'],
-                status=tdata['status'],
-                creator_id=tdata['creator'].id,
-                technician_id=tdata['tech'].id if tdata['tech'] else None,
-                affected_system=tdata['system'],
-                department=tdata['dept'],
-                created_at=created_at,
-                updated_at=created_at + timedelta(minutes=15),
-                response_due_at=resp_due,
-                resolution_due_at=resol_due,
-                first_responded_at=created_at + timedelta(minutes=20) if tdata['status'] != TicketStatus.OPEN else None
-            )
-
-            if tdata['resolved']:
-                ticket.resolved_at = created_at + timedelta(hours=6)
-                ticket.resolution_summary = tdata.get('resolution_summary')
-
-            db.session.add(ticket)
-            db.session.flush()
-
-            # Add initial status history
-            hist1 = TicketStatusHistory(
-                ticket_id=ticket.id,
-                changed_by_id=tdata['creator'].id,
-                old_status='None',
-                new_status=TicketStatus.OPEN,
-                notes='Incident reported.',
-                created_at=created_at
-            )
-            db.session.add(hist1)
-
-            if tdata['tech']:
-                hist2 = TicketStatusHistory(
-                    ticket_id=ticket.id,
-                    changed_by_id=user_map['admin'].id,
-                    old_status=TicketStatus.OPEN,
-                    new_status=ticket.status,
-                    notes=f"Assigned to technician {tdata['tech'].full_name}.",
-                    created_at=created_at + timedelta(minutes=10)
-                )
-                db.session.add(hist2)
-
-            # Comments on Ticket 1 (including internal note test)
-            if tdata['ref'] == 'INC-2026-00001':
-                c1 = Comment(
-                    ticket_id=ticket.id,
-                    user_id=user_map['emp_jordan'].id,
-                    content="CloudWatch graph shows request volume doubled within 15 minutes. Seeing intermittent 504 gateway timeout errors on checkout API.",
-                    is_internal=False,
-                    created_at=created_at + timedelta(minutes=10)
-                )
-                c2 = Comment(
-                    ticket_id=ticket.id,
-                    user_id=user_map['tech_sarah'].id,
-                    content="Incident acknowledged. Reviewing Auto Scaling Group target tracking metrics and CloudWatch access logs now.",
-                    is_internal=False,
-                    created_at=created_at + timedelta(minutes=25)
-                )
-                # CRITICAL INTERNAL NOTE FOR TESTING RBAC
-                c3_internal = Comment(
-                    ticket_id=ticket.id,
-                    user_id=user_map['tech_sarah'].id,
-                    content="[INTERNAL TECHNICIAN NOTE - CONFIDENTIAL] Root cause suspected to be unindexed SQL query in release v2.4.1 hammering MySQL thread pool. Scaling ASG to 8 instances as temporary cushion while DBA prepares hotfix index.",
-                    is_internal=True,
-                    created_at=created_at + timedelta(minutes=30)
-                )
-                db.session.add_all([c1, c2, c3_internal])
-
-        # Baseline audit logs
-        log1 = AuditLog(
-            user_id=user_map['admin'].id,
-            action='SYSTEM_SEED_INITIALIZED',
-            entity_type='System',
-            entity_id='1',
-            details='CloudOps 360 baseline schema, categories, SLA policies, and seed users initialized.',
-            ip_address='127.0.0.1',
-            created_at=now - timedelta(hours=50)
-        )
-        db.session.add(log1)
-        db.session.commit()
-        print("[Seed] Realistic incident tickets and comments populated successfully.")
+def seed_database(with_demo_tickets=True):
+    """Reference data + development demo users (+ demo incidents when the table is empty)."""
+    categories = seed_reference_data()
+    users = _seed_users()
+    if with_demo_tickets and Ticket.query.count() == 0:
+        _seed_tickets(categories, users)
+        print(f"[Seed] {len(DEMO_TICKETS)} demo incidents created.")
     else:
-        print("[Seed] Existing tickets found. Seed reference data confirmed.")
+        print("[Seed] Tickets already present (or skipped); reference data and users verified.")
 
-    print("\n=======================================================")
-    print(" CloudOps 360 Demonstration Accounts Initialized:")
-    print("-------------------------------------------------------")
-    print(" Administrator: admin / AdminPass123!")
-    print(" Technician:    tech_sarah / TechPass123!")
-    print(" Technician:    tech_marcus / TechPass123!")
-    print(" Employee:      emp_jordan / EmpPass123!")
-    print(" Employee:      emp_elena / EmpPass123!")
-    print("=======================================================\n")
+    print("\n=============================================================")
+    print(" DEVELOPMENT demo accounts (never use these in production):")
+    print("-------------------------------------------------------------")
+    for username, _, _, role, _, password in DEMO_USERS:
+        print(f"  {role:<11} {username:<12} / {password}")
+    print("=============================================================\n")

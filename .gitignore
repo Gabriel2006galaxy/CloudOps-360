@@ -75,3 +75,7 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# Local tooling, test artifacts and instance data
+.claude/
+tests/.test_uploads/

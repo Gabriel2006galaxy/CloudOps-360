@@ -1,107 +1,48 @@
 {% extends "base.html" %}
+{% from "_macros.html" import field, priority_badge, stat_card %}
+{% block title %}SLA Policies{% endblock %}
 
-{% block title %}SLA Policy Management — CloudOps 360{% endblock %}
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">SLA policies</li>
+</ol></nav>
+<h1 class="page-title fw-bold brand-font mb-1">SLA Policies</h1>
+<p class="text-muted small mb-4">First-response and resolution targets per priority. New targets apply to new tickets and priority changes; optionally recalculate active tickets.</p>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold brand-font mb-1">Service Level Agreement (SLA) Engine</h2>
-    <p class="text-muted small mb-0">Configure operational response and resolution target thresholds by incident priority.</p>
-  </div>
-  <button class="btn btn-cyan shadow-sm" data-bs-toggle="modal" data-bs-target="#editSlaModal">
-    <i class="bi bi-pencil-square me-1"></i> Configure Policy
-  </button>
-</div>
-
-<!-- SLA Compliance Summary Cards -->
+{% set s = sla_metrics %}
 <div class="row g-3 mb-4">
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">SLA Compliance Rate</div>
-          <div class="fs-2 fw-bold mt-1 text-success">{{ sla_metrics.compliance_rate }}%</div>
-        </div>
-        <div class="stat-icon-wrapper bg-success-subtle text-success">
-          <i class="bi bi-award"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Active Overdue</div>
-          <div class="fs-2 fw-bold mt-1 text-danger">{{ sla_metrics.overdue_count }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-danger-subtle text-danger">
-          <i class="bi bi-alarm"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Resolved Within SLA</div>
-          <div class="fs-2 fw-bold mt-1 text-info">{{ sla_metrics.resolved_within_sla }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-info-subtle text-info">
-          <i class="bi bi-shield-check"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Breached Incidents</div>
-          <div class="fs-2 fw-bold mt-1 text-warning">{{ sla_metrics.breached_count }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-warning-subtle text-warning">
-          <i class="bi bi-exclamation-triangle"></i>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="col-6 col-xl-3">{{ stat_card('Resolution compliance', (s.compliance_rate ~ '%') if s.compliance_rate is not none else '—', 'bi-award', 'success', (s.resolved_within_sla ~ ' of ' ~ s.evaluated_count ~ ' evaluated') if s.evaluated_count else 'Nothing evaluated yet') }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('First-response compliance', (s.response_compliance_rate ~ '%') if s.response_compliance_rate is not none else '—', 'bi-reply', 'info', 'Responded before response target') }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('Active overdue', s.overdue_count, 'bi-alarm', 'danger', 'Open past resolution target', url_for('tickets.index', overdue=1)) }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('Resolved late', s.resolved_breached, 'bi-exclamation-triangle', 'warning', 'Resolved after target') }}</div>
 </div>
 
-<!-- Active Policies Table -->
 <div class="card card-premium mb-4">
-  <div class="card-header-premium">
-    <h5 class="mb-0 fw-bold"><i class="bi bi-stopwatch-fill me-2 text-info"></i> Active Priority Policies</h5>
-  </div>
+  <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-stopwatch-fill text-info me-2" aria-hidden="true"></i>Targets by priority</h2></div>
   <div class="table-responsive">
     <table class="table table-premium align-middle">
-      <thead>
-        <tr>
-          <th>Priority Tier</th>
-          <th>First Response Target</th>
-          <th>Resolution Target</th>
-          <th>Description & Scope</th>
-          <th>Last Configured</th>
-        </tr>
-      </thead>
+      <thead><tr><th scope="col">Priority</th><th scope="col">First response</th><th scope="col">Resolution</th><th scope="col">Resolved</th><th scope="col">Avg. resolution</th><th scope="col">Within SLA</th><th scope="col">Description</th><th scope="col" class="text-end">Edit</th></tr></thead>
       <tbody>
-        {% for p in policies %}
+        {% for row in by_priority %}
+        {% set p = policies.get(row.priority) %}
         <tr>
-          <td>
-            <span class="badge badge-priority-{{ p.priority|lower }} fs-6">{{ p.priority }}</span>
+          <td>{{ priority_badge(row.priority) }}</td>
+          <td class="fw-semibold text-info">{{ p.response_time_hours ~ ' h' if p else 'default' }}</td>
+          <td class="fw-semibold text-warning">{{ p.resolution_time_hours ~ ' h' if p else 'default' }}</td>
+          <td>{{ row.resolved }}</td>
+          <td class="small">{{ (row.avg_hours ~ ' h') if row.resolved else '—' }}</td>
+          <td>{% if row.sla_rate is not none %}<span class="badge {% if row.sla_rate >= 90 %}bg-success{% elif row.sla_rate >= 70 %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ row.sla_rate }}%</span>{% else %}<span class="text-muted small">—</span>{% endif %}</td>
+          <td class="small text-muted" style="max-width: 280px;">{{ p.description if p and p.description else '—' }}</td>
+          <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editSlaModal"
+                    data-priority="{{ row.priority }}" data-response="{{ p.response_time_hours if p else '' }}"
+                    data-resolution="{{ p.resolution_time_hours if p else '' }}" data-description="{{ p.description if p and p.description else '' }}">
+              <i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Edit {{ row.priority }} policy</span>
+            </button>
           </td>
-          <td>
-            <span class="fw-semibold text-info">{{ p.response_time_hours }} Hours</span>
-          </td>
-          <td>
-            <span class="fw-semibold text-warning">{{ p.resolution_time_hours }} Hours</span>
-          </td>
-          <td class="small text-muted">{{ p.description or '—' }}</td>
-          <td class="small text-muted">{{ p.updated_at|dateformat }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -109,42 +50,48 @@
   </div>
 </div>
 
-<!-- Modal: Configure SLA Policy -->
-<div class="modal fade" id="editSlaModal" tabindex="-1" aria-labelledby="editSlaModalLabel" aria-hidden="true">
+<div class="modal fade" id="editSlaModal" tabindex="-1" aria-labelledby="editSlaModalLabel" aria-hidden="true" {% if open_modal %}data-open-on-load{% endif %}>
   <div class="modal-dialog">
-    <div class="modal-content card-premium">
-      <form action="{{ url_for('admin.sla') }}" method="POST">
-        {{ form.hidden_tag() }}
-        <div class="modal-header border-bottom">
-          <h5 class="modal-title fw-bold" id="editSlaModalLabel">Configure Priority SLA Policy</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <form class="modal-content card-premium" action="{{ url_for('admin.sla') }}" method="POST" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold" id="editSlaModalLabel">Configure SLA policy</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {{ field(form.priority, required=True) }}
+        <div class="row g-2">
+          <div class="col-6">{{ field(form.response_time_hours, required=True, type='number', min=1, max=720) }}</div>
+          <div class="col-6">{{ field(form.resolution_time_hours, required=True, type='number', min=1, max=2160) }}</div>
         </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Priority Tier</label>
-            {{ form.priority(class="form-select") }}
-          </div>
-          <div class="row g-2 mb-3">
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">Response Target (Hours) <span class="text-danger">*</span></label>
-              {{ form.response_time_hours(class="form-control", type="number", min="1") }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">Resolution Target (Hours) <span class="text-danger">*</span></label>
-              {{ form.resolution_time_hours(class="form-control", type="number", min="1") }}
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-semibold">Policy Description</label>
-            {{ form.description(class="form-control", rows=2) }}
-          </div>
+        {{ field(form.description, rows=2, maxlength=255) }}
+        <div class="form-check">
+          {{ form.apply_to_active(class='form-check-input') }}
+          <label class="form-check-label small" for="{{ form.apply_to_active.id }}">{{ form.apply_to_active.label.text }}</label>
         </div>
-        <div class="modal-footer border-top">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-cyan">Save SLA Policy</button>
-        </div>
-      </form>
-    </div>
+      </div>
+      <div class="modal-footer border-top">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-cyan">Save Policy</button>
+      </div>
+    </form>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var modal = document.getElementById('editSlaModal');
+  modal.addEventListener('show.bs.modal', function (e) {
+    var btn = e.relatedTarget;
+    if (!btn || !btn.dataset.priority) return;
+    modal.querySelector('#priority').value = btn.dataset.priority;
+    modal.querySelector('#response_time_hours').value = btn.dataset.response;
+    modal.querySelector('#resolution_time_hours').value = btn.dataset.resolution;
+    modal.querySelector('#description').value = btn.dataset.description;
+  });
+  if (modal.hasAttribute('data-open-on-load')) bootstrap.Modal.getOrCreateInstance(modal).show();
+})();
+</script>
 {% endblock %}

@@ -1,192 +1,89 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge, sla_cell, empty_state, stat_card, chart_box %}
+{% block title %}My Dashboard{% endblock %}
+{% block chart_scripts %}{% include "_chart_scripts.html" %}{% endblock %}
 
-{% block title %}Employee Service Portal — CloudOps 360{% endblock %}
+{% block page_header %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">Hello, {{ current_user.full_name.split(' ')[0] }}</h1>
+    <p class="text-muted small mb-0">Track your IT incidents and their resolution progress.</p>
+  </div>
+  <a href="{{ url_for('tickets.create') }}" class="btn btn-cyan shadow-sm"><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Report Incident</a>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold brand-font mb-1">Employee Self-Service Portal</h2>
-    <p class="text-muted small mb-0">Track your IT service requests, diagnostic uploads, and incident resolutions.</p>
-  </div>
-  <a href="{{ url_for('tickets.create') }}" class="btn btn-cyan shadow-sm">
-    <i class="bi bi-plus-circle me-1"></i> Report New Incident
-  </a>
-</div>
-
-<!-- Metric Stat Cards -->
 <div class="row g-3 mb-4">
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">My Total Tickets</div>
-          <div class="fs-2 fw-bold mt-1">{{ total_tickets }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-primary-subtle text-primary">
-          <i class="bi bi-ticket-perforated"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Open / Awaiting</div>
-          <div class="fs-2 fw-bold mt-1 text-info">{{ open_tickets }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-info-subtle text-info">
-          <i class="bi bi-hourglass-split"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">In Progress</div>
-          <div class="fs-2 fw-bold mt-1 text-warning">{{ in_progress }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-warning-subtle text-warning">
-          <i class="bi bi-gear-wide-connected"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Resolved / Closed</div>
-          <div class="fs-2 fw-bold mt-1 text-success">{{ resolved }}</div>
-        </div>
-        <div class="stat-icon-wrapper bg-success-subtle text-success">
-          <i class="bi bi-check-circle"></i>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="col-6 col-xl-3">{{ stat_card('My tickets', m.total, 'bi-ticket-detailed', 'info', 'All time', url_for('tickets.index')) }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('Waiting for support', m.open_count, 'bi-inbox', 'primary', 'Open or assigned', url_for('tickets.index', status='Open')) }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('In progress', m.in_progress, 'bi-gear-wide-connected', 'warning', 'Being worked on', url_for('tickets.index', status='In Progress')) }}</div>
+  <div class="col-6 col-xl-3">{{ stat_card('Resolved / closed', m.resolved_count, 'bi-check2-circle', 'success',
+      (m.awaiting_confirmation ~ ' awaiting your confirmation') if m.awaiting_confirmation else 'Completed', url_for('tickets.index', status='Resolved')) }}</div>
 </div>
 
+{% if m.total == 0 %}
+<div class="card card-premium">
+  {{ empty_state('bi-emoji-smile', 'No incidents reported yet', 'When something breaks, report it here and track progress until it is resolved.', url_for('tickets.create'), 'Report your first incident') }}
+</div>
+{% else %}
 <div class="row g-4">
-  <!-- Recent Incidents Table -->
   <div class="col-lg-8">
-    <div class="card card-premium">
+    <div class="card card-premium h-100">
       <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-info"></i> My Recent Incident Tickets</h5>
-        <a href="{{ url_for('tickets.index') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+        <h2 class="h6 mb-0 fw-bold">Recent tickets</h2>
+        <a href="{{ url_for('tickets.index') }}" class="btn btn-sm btn-outline-secondary">View all</a>
       </div>
       <div class="table-responsive">
         <table class="table table-premium align-middle">
-          <thead>
-            <tr>
-              <th>Reference</th>
-              <th>Incident Title</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th>SLA Target</th>
-              <th>Action</th>
-            </tr>
-          </thead>
+          <thead><tr><th scope="col">Reference</th><th scope="col">Title</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col">Progress</th></tr></thead>
           <tbody>
-            {% if recent_tickets %}
-              {% for ticket in recent_tickets %}
-              <tr>
-                <td>
-                  <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="fw-bold text-decoration-none text-info">
-                    {{ ticket.reference_id }}
-                  </a>
-                </td>
-                <td>
-                  <div class="fw-semibold text-truncate" style="max-width: 240px;" title="{{ ticket.title }}">
-                    {{ ticket.title }}
-                  </div>
-                  <small class="text-muted">{{ ticket.category.name if ticket.category else 'General' }}</small>
-                </td>
-                <td>
-                  <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
-                </td>
-                <td>
-                  <span class="badge badge-status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
-                </td>
-                <td>
-                  <small class="{% if ticket.is_overdue %}text-danger fw-bold{% else %}text-muted{% endif %}">
-                    {{ ticket.time_remaining_display }}
-                  </small>
-                </td>
-                <td>
-                  <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="btn btn-sm btn-outline-info">
-                    View
-                  </a>
-                </td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td colspan="6" class="empty-state">
-                  <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
-                  <h6>No incident tickets reported yet</h6>
-                  <p class="text-muted small">When you experience IT service or cloud issues, report them here.</p>
-                  <a href="{{ url_for('tickets.create') }}" class="btn btn-sm btn-cyan">Report Incident</a>
-                </td>
-              </tr>
-            {% endif %}
+            {% for t in m.recent_tickets %}
+            <tr>
+              <td class="text-nowrap"><a class="fw-bold text-info text-decoration-none font-monospace" href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}">{{ t.reference_id }}</a></td>
+              <td><div class="text-truncate" style="max-width: 240px;" title="{{ t.title }}">{{ t.title }}</div>
+                <small class="text-muted">{% if t.technician %}{{ t.technician.full_name }}{% else %}Awaiting assignment{% endif %}</small></td>
+              <td>{{ priority_badge(t.priority) }}</td>
+              <td>{{ status_badge(t.status) }}{% if t.status == 'Resolved' %}<div class="small text-warning mt-1">Please confirm</div>{% endif %}</td>
+              <td style="min-width: 140px;">{{ sla_cell(t) }}</td>
+            </tr>
+            {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
   </div>
-
-  <!-- Recent Notifications & System Status -->
   <div class="col-lg-4">
     <div class="card card-premium mb-4">
-      <div class="card-header-premium">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-bell me-2 text-info"></i> Recent Updates</h5>
-      </div>
-      <div class="p-3">
-        {% if recent_notifications %}
-          {% for notif in recent_notifications %}
-          <div class="p-2 border-bottom mb-2">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="fw-bold small">{{ notif.title }}</span>
-              <small class="text-muted" style="font-size: 0.75rem;">{{ notif.created_at|datetimeformat }}</small>
-            </div>
-            <p class="small text-muted mb-0">{{ notif.message }}</p>
-          </div>
-          {% endfor %}
-        {% else %}
-          <p class="text-muted small text-center mb-0 py-3">No updates yet.</p>
-        {% endif %}
-      </div>
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Status breakdown</h2></div>
+      <div class="p-3">{{ chart_box('employeeStatusChart', m.total == 0, 'Your tickets by status') }}</div>
     </div>
-
-    <!-- IT Service SLA Info Card -->
-    <div class="card card-premium p-4">
-      <h6 class="fw-bold mb-2"><i class="bi bi-shield-check text-info me-2"></i> CloudOps 360 SLA Commitment</h6>
-      <p class="text-muted small mb-3">Our Tier 2 Support engineers prioritize and resolve incidents based on business impact:</p>
-      <div class="small">
-        <div class="d-flex justify-content-between py-1 border-bottom">
-          <span class="badge badge-priority-critical">Critical</span>
-          <span class="text-muted">4 Hours Resolution</span>
+    <div class="card card-premium">
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Recent activity</h2></div>
+      <div class="p-3 small">
+        {% for h in m.recent_activity %}
+        <div class="timeline-item">
+          <span class="timeline-dot"><i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+          <a href="{{ url_for('tickets.detail', reference_id=h.ticket.reference_id) }}" class="fw-semibold text-decoration-none">{{ h.ticket.reference_id }}</a>
+          <span class="text-muted">{{ h.old_status }} →</span> <span class="text-info">{{ h.new_status }}</span>
+          <div class="text-muted" style="font-size: 0.75rem;">{{ h.changed_by.full_name }} · {{ h.created_at|timeago }}</div>
         </div>
-        <div class="d-flex justify-content-between py-1 border-bottom">
-          <span class="badge badge-priority-high">High</span>
-          <span class="text-muted">12 Hours Resolution</span>
-        </div>
-        <div class="d-flex justify-content-between py-1 border-bottom">
-          <span class="badge badge-priority-medium">Medium</span>
-          <span class="text-muted">24 Hours Resolution</span>
-        </div>
-        <div class="d-flex justify-content-between py-1">
-          <span class="badge badge-priority-low">Low</span>
-          <span class="text-muted">72 Hours Resolution</span>
-        </div>
+        {% else %}
+        <p class="text-muted mb-0">No activity yet.</p>
+        {% endfor %}
       </div>
     </div>
   </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{% if m.total %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  CloudOpsCharts.doughnut('employeeStatusChart', {{ m.status_counts.keys()|list|tojson }}, {{ m.status_counts.values()|list|tojson }}, CloudOpsCharts.COLORS.status);
+});
+</script>
+{% endif %}
 {% endblock %}

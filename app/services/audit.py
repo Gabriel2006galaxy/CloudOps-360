@@ -1,49 +1,69 @@
-from flask import request
+import logging
+import re
+
+from flask import has_request_context, request
 from flask_login import current_user
+
 from app.extensions import db
 from app.models import AuditLog
 
+logger = logging.getLogger(__name__)
 
-def log_audit_event(action, entity_type=None, entity_id=None, details=None, user_id=None):
-    """
-    Records an enterprise audit log entry for compliance and security forensics.
-    
-    Parameters:
-    - action: Short string identifier, e.g. 'AUTH_LOGIN_SUCCESS', 'TICKET_STATUS_CHANGE'
-    - entity_type: Class name e.g. 'Ticket', 'User', 'SLAPolicy'
-    - entity_id: ID or reference of affected entity
-    - details: Human-readable or structured details string
-    - user_id: Specific actor ID (defaults to current_user.id if authenticated)
+# Defence in depth: scrub anything that looks like a credential before it is stored
+_SECRET_PATTERNS = [
+    (re.compile(r'(?i)(password|passwd|pwd|secret|token|api[_-]?key)\s*[=:]\s*\S+'), r'\1=[REDACTED]'),
+    (re.compile(r'(mysql\+pymysql://[^:/\s]+):[^@\s]+@'), r'\1:[REDACTED]@'),
+]
+
+
+def scrub_secrets(text):
+    if not text:
+        return text
+    for pattern, replacement in _SECRET_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+def client_ip():
+    """Client IP. Behind Nginx, ProxyFix (TRUSTED_PROXY_COUNT) has already resolved
+    X-Forwarded-For safely, so the raw header is never trusted here."""
+    if not has_request_context():
+        return None
+    return (request.remote_addr or '')[:45] or None
+
+
+def log_audit_event(action, entity_type=None, entity_id=None, details=None, user_id=None, commit=True):
+    """Records an audit log entry for compliance and security forensics.
+
+    - action: identifier, e.g. 'AUTH_LOGIN_SUCCESS', 'TICKET_STATUS_CHANGE'
+    - commit=False stages the entry in the caller's transaction so the audit
+      record and the change it describes are committed atomically.
+    Never pass passwords or secrets; details are scrubbed as a safety net.
     """
     try:
         actor_id = user_id
-        if actor_id is None and current_user and current_user.is_authenticated:
+        if actor_id is None and has_request_context() and current_user and current_user.is_authenticated:
             actor_id = current_user.id
 
-        ip_address = None
         user_agent = None
+        if has_request_context() and request.user_agent:
+            user_agent = (request.user_agent.string or '')[:250] or None
 
-        if request:
-            # Check for standard reverse-proxy headers (AWS ALB / Nginx)
-            if request.headers.get('X-Forwarded-For'):
-                ip_address = request.headers.get('X-Forwarded-For').split(',')[0].strip()
-            else:
-                ip_address = request.remote_addr
-            
-            user_agent = request.user_agent.string[:250] if request.user_agent else None
-
-        audit_entry = AuditLog(
+        entry = AuditLog(
             user_id=actor_id,
-            action=action,
+            action=action[:64],
             entity_type=entity_type,
-            entity_id=str(entity_id) if entity_id is not None else None,
-            details=details,
-            ip_address=ip_address,
-            user_agent=user_agent
+            entity_id=str(entity_id)[:64] if entity_id is not None else None,
+            details=scrub_secrets(details),
+            ip_address=client_ip(),
+            user_agent=user_agent,
         )
-        db.session.add(audit_entry)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        # Ensure audit failure does not crash core application logic
-        print(f"[AuditService] Failed to record audit log: {e}")
+        db.session.add(entry)
+        if commit:
+            db.session.commit()
+        return entry
+    except Exception as exc:  # noqa: BLE001 - audit failure must not break the request
+        if commit:
+            db.session.rollback()
+        logger.error("[Audit] Failed to record audit event %s: %s", action, type(exc).__name__)
+        return None
