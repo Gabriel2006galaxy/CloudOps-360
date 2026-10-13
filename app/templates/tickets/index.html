@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Tickets — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">Incident Tickets Management</h2>
+    <p class="text-muted small mb-0">Browse, filter, and track lifecycle status of enterprise cloud and IT incidents.</p>
+  </div>
+  <a href="{{ url_for('tickets.create') }}" class="btn btn-cyan shadow-sm">
+    <i class="bi bi-plus-circle me-1"></i> Report New Incident
+  </a>
+</div>
+
+<!-- Search & Filtering Toolbar -->
+<div class="card card-premium p-3 mb-4">
+  <form method="GET" action="{{ url_for('tickets.index') }}">
+    <div class="row g-2 align-items-center">
+      <!-- Search Input -->
+      <div class="col-md-3">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" class="form-control" placeholder="Search reference, title..." value="{{ current_search }}">
+        </div>
+      </div>
+
+      <!-- Status Filter -->
+      <div class="col-sm-6 col-md-2">
+        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Statuses</option>
+          <option value="Open" {% if current_status == 'Open' %}selected{% endif %}>Open</option>
+          <option value="Assigned" {% if current_status == 'Assigned' %}selected{% endif %}>Assigned</option>
+          <option value="In Progress" {% if current_status == 'In Progress' %}selected{% endif %}>In Progress</option>
+          <option value="Resolved" {% if current_status == 'Resolved' %}selected{% endif %}>Resolved</option>
+          <option value="Closed" {% if current_status == 'Closed' %}selected{% endif %}>Closed</option>
+        </select>
+      </div>
+
+      <!-- Priority Filter -->
+      <div class="col-sm-6 col-md-2">
+        <select name="priority" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Priorities</option>
+          <option value="Critical" {% if current_priority == 'Critical' %}selected{% endif %}>Critical</option>
+          <option value="High" {% if current_priority == 'High' %}selected{% endif %}>High</option>
+          <option value="Medium" {% if current_priority == 'Medium' %}selected{% endif %}>Medium</option>
+          <option value="Low" {% if current_priority == 'Low' %}selected{% endif %}>Low</option>
+        </select>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="col-sm-6 col-md-2">
+        <select name="category_id" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Categories</option>
+          {% for cat in categories %}
+          <option value="{{ cat.id }}" {% if current_category == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Overdue Filter Toggle & Submit -->
+      <div class="col-sm-6 col-md-3 d-flex gap-2 justify-content-md-end">
+        <a href="{{ url_for('tickets.index', overdue=1 if not overdue_only else None) }}" class="btn btn-sm {% if overdue_only %}btn-danger{% else %}btn-outline-danger{% endif %} text-nowrap">
+          <i class="bi bi-alarm me-1"></i> Overdue Only
+        </a>
+        <button type="submit" class="btn btn-sm btn-cyan">Filter</button>
+        {% if current_search or current_status or current_priority or current_category or overdue_only %}
+        <a href="{{ url_for('tickets.index') }}" class="btn btn-sm btn-outline-secondary" title="Reset Filters">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Incident Tickets Table -->
+<div class="card card-premium">
+  <div class="table-responsive">
+    <table class="table table-premium align-middle">
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Incident Title</th>
+          <th>Reporter</th>
+          <th>Assignee</th>
+          <th>Priority</th>
+          <th>Status</th>
+          <th>SLA Target</th>
+          <th>Created</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if tickets %}
+          {% for ticket in tickets %}
+          <tr class="{% if ticket.is_overdue %}table-danger-subtle{% endif %}">
+            <td>
+              <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="fw-bold text-info text-decoration-none">
+                {{ ticket.reference_id }}
+              </a>
+            </td>
+            <td>
+              <div class="fw-semibold text-truncate" style="max-width: 260px;" title="{{ ticket.title }}">
+                {{ ticket.title }}
+              </div>
+              <small class="text-muted">{{ ticket.category.name if ticket.category else 'General' }}</small>
+            </td>
+            <td>
+              <div class="small fw-medium">{{ ticket.creator.full_name }}</div>
+              <small class="text-muted">{{ ticket.department or 'General' }}</small>
+            </td>
+            <td>
+              {% if ticket.technician %}
+              <div class="small fw-medium text-info"><i class="bi bi-person-check me-1"></i>{{ ticket.technician.full_name }}</div>
+              {% else %}
+              <span class="badge bg-secondary-subtle text-muted border">Unassigned</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
+            </td>
+            <td>
+              <span class="badge badge-status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
+            </td>
+            <td>
+              <span class="small {% if ticket.is_overdue %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                {% if ticket.is_overdue %}<i class="bi bi-exclamation-triangle-fill me-1"></i>{% endif %}
+                {{ ticket.time_remaining_display }}
+              </span>
+            </td>
+            <td class="text-nowrap small text-muted">
+              {{ ticket.created_at|dateformat }}
+            </td>
+            <td class="text-end">
+              <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="btn btn-sm btn-outline-info">
+                View
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="9" class="empty-state">
+              <div class="empty-state-icon"><i class="bi bi-ticket-detailed"></i></div>
+              <h5>No incident tickets found</h5>
+              <p class="text-muted small">No tickets match your active filter criteria.</p>
+              <a href="{{ url_for('tickets.create') }}" class="btn btn-sm btn-cyan">Report Incident</a>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  {% if pagination.pages > 1 %}
+  <div class="card-footer bg-transparent border-top p-3 d-flex justify-content-between align-items-center">
+    <div class="small text-muted">
+      Showing page {{ pagination.page }} of {{ pagination.pages }} ({{ pagination.total }} tickets)
+    </div>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('tickets.index', page=pagination.prev_num, q=current_search, status=current_status, priority=current_priority, category_id=current_category, overdue=overdue_only) }}">Previous</a>
+        </li>
+        {% for p in pagination.iter_pages() %}
+          {% if p %}
+          <li class="page-item {% if p == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('tickets.index', page=p, q=current_search, status=current_status, priority=current_priority, category_id=current_category, overdue=overdue_only) }}">{{ p }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('tickets.index', page=pagination.next_num, q=current_search, status=current_status, priority=current_priority, category_id=current_category, overdue=overdue_only) }}">Next</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

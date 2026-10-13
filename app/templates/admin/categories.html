@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Categories — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">Incident Categories</h2>
+    <p class="text-muted small mb-0">Organize and classify infrastructure, software, security, and network tickets.</p>
+  </div>
+  <button class="btn btn-cyan shadow-sm" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
+    <i class="bi bi-tag me-1"></i> Add Category
+  </button>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card card-premium">
+      <div class="table-responsive">
+        <table class="table table-premium align-middle">
+          <thead>
+            <tr>
+              <th>Category Name</th>
+              <th>Description</th>
+              <th>Tickets Count</th>
+              <th>Status</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cat in categories %}
+            <tr>
+              <td>
+                <span class="fw-semibold text-main">{{ cat.name }}</span>
+              </td>
+              <td class="text-muted small">{{ cat.description or '—' }}</td>
+              <td>
+                <span class="badge bg-secondary-subtle text-body border">{{ cat.tickets.count() }} tickets</span>
+              </td>
+              <td>
+                {% if cat.is_active %}
+                <span class="badge bg-success-subtle text-success border border-success">Active</span>
+                {% else %}
+                <span class="badge bg-secondary text-white">Disabled</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <form action="{{ url_for('admin.toggle_category', category_id=cat.id) }}" method="POST" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm {% if cat.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                    {% if cat.is_active %}Disable{% else %}Enable{% endif %}
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card card-premium p-4">
+      <h5 class="fw-bold mb-3"><i class="bi bi-info-circle text-info me-2"></i> Category Guidelines</h5>
+      <p class="text-muted small">
+        Incident categories establish classification taxonomies for cloud service requests and route tickets to specialized technician response groups.
+      </p>
+      <div class="small text-muted">
+        <div>&bull; Cloud Infrastructure (Compute, ASG, Load Balancers)</div>
+        <div>&bull; Database & Storage (Amazon RDS, Amazon EFS)</div>
+        <div>&bull; Network & Connectivity (VPC, Direct Connect, VPN)</div>
+        <div>&bull; Security & Compliance (IAM, Certificates, WAF)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Category -->
+<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content card-premium">
+      <form action="{{ url_for('admin.categories') }}" method="POST">
+        {{ form.hidden_tag() }}
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold" id="createCategoryModalLabel">Add Incident Category</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Category Name <span class="text-danger">*</span></label>
+            {{ form.name(class="form-control", placeholder="e.g. Identity & Access (IAM/SSO)") }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Description</label>
+            {{ form.description(class="form-control", placeholder="Scope of issues covered under this category") }}
+          </div>
+          <div class="form-check">
+            {{ form.is_active(class="form-check-input") }}
+            <label class="form-check-label small" for="{{ form.is_active.id }}">Category Active</label>
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-cyan">Save Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

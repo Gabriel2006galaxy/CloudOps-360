@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Security & Forensics Audit Trail — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">Security & Forensics Audit Trail</h2>
+    <p class="text-muted small mb-0">Immutable compliance logs tracking authentication, status changes, assignments, and admin operations.</p>
+  </div>
+  <span class="badge bg-secondary-subtle text-body border px-3 py-2">
+    <i class="bi bi-shield-check text-info me-1"></i> SOC-2 & AWS Security Compliant
+  </span>
+</div>
+
+<!-- Search & Action Filter Toolbar -->
+<div class="card card-premium p-3 mb-4">
+  <form method="GET" action="{{ url_for('admin.audit_logs') }}">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search"></i></span>
+          <input type="text" name="search" class="form-control" placeholder="Search details, entity ID, IP address..." value="{{ current_search }}">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-transparent text-muted"><i class="bi bi-funnel"></i></span>
+          <input type="text" name="action" class="form-control" placeholder="Filter by action e.g. AUTH, TICKET..." value="{{ current_action }}">
+        </div>
+      </div>
+      <div class="col-md-3 d-flex gap-2 justify-content-md-end">
+        <button type="submit" class="btn btn-sm btn-cyan">Filter</button>
+        {% if current_search or current_action %}
+        <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Audit Trail Table -->
+<div class="card card-premium">
+  <div class="table-responsive">
+    <table class="table table-premium align-middle small">
+      <thead>
+        <tr>
+          <th>Timestamp (UTC)</th>
+          <th>Action Type</th>
+          <th>Entity</th>
+          <th>Actor</th>
+          <th>IP Address</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if logs %}
+          {% for log in logs %}
+          <tr>
+            <td class="text-nowrap text-muted">{{ log.created_at|datetimeformat }}</td>
+            <td>
+              <span class="badge bg-secondary-subtle text-body border fw-semibold">
+                {{ log.action }}
+              </span>
+            </td>
+            <td>
+              {% if log.entity_type %}
+              <span class="fw-medium">{{ log.entity_type }}</span>
+              <small class="text-muted font-monospace">#{{ log.entity_id or '—' }}</small>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if log.actor %}
+              <span class="fw-semibold text-info">{{ log.actor.username }}</span>
+              <small class="text-muted d-block">{{ log.actor.role|capitalize }}</small>
+              {% else %}
+              <span class="text-muted">System / Guest</span>
+              {% endif %}
+            </td>
+            <td>
+              <code class="text-secondary">{{ log.ip_address or '127.0.0.1' }}</code>
+            </td>
+            <td style="max-width: 350px;">
+              <div class="text-break">{{ log.details or '—' }}</div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">
+              No audit records matching your search query.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if pagination.pages > 1 %}
+  <div class="card-footer bg-transparent border-top p-3 d-flex justify-content-between align-items-center">
+    <div class="small text-muted">Page {{ pagination.page }} of {{ pagination.pages }} ({{ pagination.total }} audit entries)</div>
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.audit_logs', page=pagination.prev_num, search=current_search, action=current_action) }}">Prev</a>
+      </li>
+      <li class="page-item disabled"><span class="page-link">{{ pagination.page }}</span></li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.audit_logs', page=pagination.next_num, search=current_search, action=current_action) }}">Next</a>
+      </li>
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

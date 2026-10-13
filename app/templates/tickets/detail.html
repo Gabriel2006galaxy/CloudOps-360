@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticket.reference_id }}: {{ ticket.title }} — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="fs-4 fw-bold font-monospace text-info">{{ ticket.reference_id }}</span>
+        <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
+        <span class="badge badge-status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
+        {% if ticket.is_overdue %}
+        <span class="badge bg-danger overdue-pulse"><i class="bi bi-alarm me-1"></i>SLA OVERDUE</span>
+        {% endif %}
+      </div>
+      <h2 class="fw-bold brand-font mb-0">{{ ticket.title }}</h2>
+    </div>
+
+    <!-- Actions for Technicians & Admins / Reopen for Creator -->
+    <div class="d-flex gap-2">
+      {% if current_user.is_technician or current_user.is_admin %}
+      <button class="btn btn-cyan" data-bs-toggle="modal" data-bs-target="#updateTicketModal">
+        <i class="bi bi-sliders me-1"></i> Update Status / Assign
+      </button>
+      {% endif %}
+
+      {% if ticket.is_resolved %}
+      <form action="{{ url_for('tickets.reopen', reference_id=ticket.reference_id) }}" method="POST" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-warning">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Reopen Incident
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="text-muted small">
+    Reported by <strong class="text-body">{{ ticket.creator.full_name }}</strong> on {{ ticket.created_at|datetimeformat }} &bull; Last updated {{ ticket.updated_at|datetimeformat }}
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Left Column: Details, Description, Attachments, Comments -->
+  <div class="col-lg-8">
+    <!-- Description Card -->
+    <div class="card card-premium p-4 mb-4">
+      <h5 class="fw-bold mb-3 border-bottom pb-2"><i class="bi bi-file-earmark-text text-info me-2"></i> Incident Description</h5>
+      <div class="text-body" style="white-space: pre-wrap; line-height: 1.6;">{{ ticket.description }}</div>
+    </div>
+
+    <!-- Resolution Summary (if resolved) -->
+    {% if ticket.resolution_summary %}
+    <div class="card card-premium p-4 mb-4 border-success">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+        <h5 class="fw-bold mb-0 text-success">Resolution Summary & Root Cause</h5>
+      </div>
+      <div class="text-body small" style="white-space: pre-wrap;">{{ ticket.resolution_summary }}</div>
+      <div class="text-muted small mt-2">
+        Resolved at {{ ticket.resolved_at|datetimeformat }} (Duration: {{ ticket.resolution_duration or 'N/A' }})
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Diagnostic Attachments on Amazon EFS Shared Storage -->
+    <div class="card card-premium p-4 mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-paperclip text-info me-2"></i> Diagnostic Attachments (Amazon EFS)
+        </h5>
+        <button class="btn btn-sm btn-outline-cyan" data-bs-toggle="collapse" data-bs-target="#uploadAttachmentCollapse">
+          <i class="bi bi-upload me-1"></i> Add Attachment
+        </button>
+      </div>
+
+      <!-- Upload Form Collapse -->
+      <div class="collapse mb-3" id="uploadAttachmentCollapse">
+        <div class="p-3 bg-body-tertiary rounded-3 border">
+          <form action="{{ url_for('tickets.upload_attachment', reference_id=ticket.reference_id) }}" method="POST" enctype="multipart/form-data">
+            {{ attachment_form.hidden_tag() }}
+            <label class="form-label small fw-semibold">Select Log, Screenshot, or Config File</label>
+            <div class="input-group input-group-sm">
+              {{ attachment_form.attachment(class="form-control") }}
+              <button type="submit" class="btn btn-cyan">Upload to EFS</button>
+            </div>
+            <div class="form-text small">Max 10MB. Stored on Amazon EFS multi-instance mount.</div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Attachments List -->
+      {% if ticket.attachments %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead>
+            <tr class="text-muted small">
+              <th>File Name</th>
+              <th>Size</th>
+              <th>Uploaded By</th>
+              <th>Date</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for att in ticket.attachments %}
+            <tr>
+              <td>
+                <i class="bi bi-file-earmark-code text-info me-1"></i>
+                <span class="fw-semibold">{{ att.original_filename }}</span>
+              </td>
+              <td class="text-muted small">{{ att.file_size_display }}</td>
+              <td class="small">{{ att.uploader.full_name }}</td>
+              <td class="text-muted small">{{ att.created_at|dateformat }}</td>
+              <td class="text-end">
+                <a href="{{ url_for('attachments.download', attachment_id=att.id) }}" class="btn btn-sm btn-outline-info py-0 px-2">
+                  <i class="bi bi-download"></i> Download
+                </a>
+                {% if current_user.is_admin or att.user_id == current_user.id %}
+                <form action="{{ url_for('attachments.delete', attachment_id=att.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this attachment from EFS?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted small mb-0">No diagnostic attachments uploaded yet for this incident.</p>
+      {% endif %}
+    </div>
+
+    <!-- Communication Stream & Internal Notes -->
+    <div class="card card-premium p-4 mb-4">
+      <h5 class="fw-bold mb-3 border-bottom pb-2">
+        <i class="bi bi-chat-left-dots text-info me-2"></i> Communication Stream & Internal Notes
+      </h5>
+
+      <!-- Comments Stream -->
+      <div class="comments-list mb-4">
+        {% if comments %}
+          {% for comment in comments %}
+          <div class="p-3 mb-3 rounded-3 {% if comment.is_internal %}comment-internal{% else %}bg-body-tertiary border{% endif %}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold small">{{ comment.author.full_name }}</span>
+                <span class="badge {{ comment.author.role_badge_class }}" style="font-size: 0.7rem;">{{ comment.author.role|capitalize }}</span>
+                {% if comment.is_internal %}
+                <span class="internal-badge"><i class="bi bi-lock-fill me-1"></i>Internal Tech Note (Restricted)</span>
+                {% endif %}
+              </div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ comment.created_at|datetimeformat }}</small>
+            </div>
+            <div class="small" style="white-space: pre-wrap; line-height: 1.5;">{{ comment.content }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted small text-center py-3">No comments posted yet.</p>
+        {% endif %}
+      </div>
+
+      <!-- Add Comment Form -->
+      <form action="{{ url_for('tickets.add_comment', reference_id=ticket.reference_id) }}" method="POST">
+        {{ comment_form.hidden_tag() }}
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Add Response or Note</label>
+          {{ comment_form.content(class="form-control", rows=3, placeholder="Type your comment, diagnostic finding, or troubleshooting update...") }}
+        </div>
+
+        {% if current_user.is_technician or current_user.is_admin %}
+        <div class="mb-3 form-check">
+          {{ comment_form.is_internal(class="form-check-input", id="is_internal_checkbox") }}
+          <label class="form-check-label small fw-semibold text-warning" for="is_internal_checkbox">
+            <i class="bi bi-lock-fill me-1"></i> Post as Private Internal Technician Note (Hidden from employee)
+          </label>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-cyan">
+          <i class="bi bi-send me-1"></i> Submit Response
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right Column: Metadata, SLA Countdown & Timeline -->
+  <div class="col-lg-4">
+    <!-- Incident Metadata Card -->
+    <div class="card card-premium p-4 mb-4">
+      <h6 class="fw-bold mb-3 border-bottom pb-2 small text-uppercase">Incident Metadata</h6>
+      
+      <div class="mb-3">
+        <label class="text-muted small d-block">Incident Category</label>
+        <span class="fw-semibold">{{ ticket.category.name if ticket.category else 'General' }}</span>
+      </div>
+
+      <div class="mb-3">
+        <label class="text-muted small d-block">Assigned Technician</label>
+        {% if ticket.technician %}
+        <span class="fw-semibold text-info"><i class="bi bi-person-badge me-1"></i>{{ ticket.technician.full_name }}</span>
+        {% else %}
+        <span class="badge bg-secondary-subtle text-muted border">Unassigned</span>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label class="text-muted small d-block">Affected System / Resource</label>
+        <span class="fw-semibold font-monospace small">{{ ticket.affected_system or 'N/A' }}</span>
+      </div>
+
+      <div class="mb-3">
+        <label class="text-muted small d-block">Department</label>
+        <span class="fw-semibold">{{ ticket.department or 'General' }}</span>
+      </div>
+
+      <div class="mb-3">
+        <label class="text-muted small d-block">Creation Timestamp</label>
+        <span class="small">{{ ticket.created_at|datetimeformat }}</span>
+      </div>
+    </div>
+
+    <!-- SLA Target & Time Remaining Card -->
+    <div class="card card-premium p-4 mb-4 {% if ticket.is_overdue %}border-danger{% endif %}">
+      <h6 class="fw-bold mb-2 small text-uppercase"><i class="bi bi-stopwatch text-info me-1"></i> SLA Target Tracking</h6>
+      <div class="p-3 bg-body-tertiary rounded-3 border mb-3">
+        <div class="small text-muted mb-1">Resolution Deadline:</div>
+        <div class="fw-bold small mb-2">{{ ticket.resolution_due_at|datetimeformat if ticket.resolution_due_at else 'No SLA configured' }}</div>
+        
+        <div class="small text-muted mb-1">Time Remaining:</div>
+        <div class="fs-5 fw-bold {% if ticket.is_overdue %}text-danger overdue-pulse{% elif ticket.is_resolved %}text-success{% else %}text-info{% endif %}">
+          {{ ticket.time_remaining_display }}
+        </div>
+      </div>
+      <div class="small text-muted">
+        First response recorded: {{ ticket.first_responded_at|datetimeformat if ticket.first_responded_at else 'Awaiting technician response' }}
+      </div>
+    </div>
+
+    <!-- Status History Audit Timeline -->
+    <div class="card card-premium p-4">
+      <h6 class="fw-bold mb-3 border-bottom pb-2 small text-uppercase"><i class="bi bi-clock-history text-info me-1"></i> Status Transition History</h6>
+      <div class="timeline small">
+        {% for hist in status_history %}
+        <div class="border-start border-2 border-info ps-3 pb-3 position-relative">
+          <div class="fw-bold">
+            {{ hist.old_status }} &rarr; <span class="text-info">{{ hist.new_status }}</span>
+          </div>
+          <div class="text-muted" style="font-size: 0.75rem;">
+            by {{ hist.changed_by.full_name }} &bull; {{ hist.created_at|datetimeformat }}
+          </div>
+          {% if hist.notes %}
+          <div class="text-secondary mt-1 fst-italic" style="font-size: 0.8rem;">
+            &ldquo;{{ hist.notes }}&rdquo;
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Update Status / Assignment (Technicians & Admins) -->
+{% if current_user.is_technician or current_user.is_admin %}
+<div class="modal fade" id="updateTicketModal" tabindex="-1" aria-labelledby="updateTicketModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content card-premium">
+      <form action="{{ url_for('tickets.update', reference_id=ticket.reference_id) }}" method="POST">
+        {{ update_form.hidden_tag() }}
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold" id="updateTicketModalLabel">Update {{ ticket.reference_id }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Status Transition</label>
+            {{ update_form.status(class="form-select") }}
+            <div class="form-text small">Workflow: Open &rarr; Assigned &rarr; In Progress &rarr; Resolved &rarr; Closed</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Assigned Technician</label>
+            {{ update_form.technician_id(class="form-select") }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Priority Level</label>
+            {{ update_form.priority(class="form-select") }}
+            <div class="form-text small">Updating priority recalculates SLA resolution deadlines.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Affected System</label>
+            {{ update_form.affected_system(class="form-control") }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Resolution Summary & Root Cause (Required when Resolving)</label>
+            {{ update_form.resolution_summary(class="form-control", rows=3, placeholder="Document corrective action, configuration changes, or root cause analysis...") }}
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-cyan">Save Updates</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

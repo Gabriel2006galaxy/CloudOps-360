@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # MySQL 8.0 Local Database Container
+  # Mirrors Amazon RDS for MySQL configuration locally
+  db:
+    image: mysql:8.0
+    container_name: cloudops360-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: RootDevelopmentPassword123!
+      MYSQL_DATABASE: cloudops360
+      MYSQL_USER: cloudops_user
+      MYSQL_PASSWORD: CloudOpsDevPassword123!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "cloudops_user", "-pCloudOpsDevPassword123!"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Optional local containerized Flask application
+  web:
+    build: .
+    container_name: cloudops360-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_APP: run.py
+      FLASK_ENV: development
+      FLASK_DEBUG: 1
+      SECRET_KEY: local-docker-development-secret-key-360
+      DATABASE_URL: mysql+pymysql://cloudops_user:CloudOpsDevPassword123!@db:3306/cloudops360
+      UPLOAD_FOLDER: /app/uploads
+      AWS_REGION: us-east-1
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - local_uploads:/app/uploads
+    command: python run.py
+
+volumes:
+  mysql_data:
+    driver: local
+  local_uploads:
+    driver: local

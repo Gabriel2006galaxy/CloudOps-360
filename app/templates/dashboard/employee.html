@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Service Portal — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">Employee Self-Service Portal</h2>
+    <p class="text-muted small mb-0">Track your IT service requests, diagnostic uploads, and incident resolutions.</p>
+  </div>
+  <a href="{{ url_for('tickets.create') }}" class="btn btn-cyan shadow-sm">
+    <i class="bi bi-plus-circle me-1"></i> Report New Incident
+  </a>
+</div>
+
+<!-- Metric Stat Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">My Total Tickets</div>
+          <div class="fs-2 fw-bold mt-1">{{ total_tickets }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-primary-subtle text-primary">
+          <i class="bi bi-ticket-perforated"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Open / Awaiting</div>
+          <div class="fs-2 fw-bold mt-1 text-info">{{ open_tickets }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-info-subtle text-info">
+          <i class="bi bi-hourglass-split"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">In Progress</div>
+          <div class="fs-2 fw-bold mt-1 text-warning">{{ in_progress }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-warning-subtle text-warning">
+          <i class="bi bi-gear-wide-connected"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Resolved / Closed</div>
+          <div class="fs-2 fw-bold mt-1 text-success">{{ resolved }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-success-subtle text-success">
+          <i class="bi bi-check-circle"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Recent Incidents Table -->
+  <div class="col-lg-8">
+    <div class="card card-premium">
+      <div class="card-header-premium">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-info"></i> My Recent Incident Tickets</h5>
+        <a href="{{ url_for('tickets.index') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-premium align-middle">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Incident Title</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>SLA Target</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if recent_tickets %}
+              {% for ticket in recent_tickets %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="fw-bold text-decoration-none text-info">
+                    {{ ticket.reference_id }}
+                  </a>
+                </td>
+                <td>
+                  <div class="fw-semibold text-truncate" style="max-width: 240px;" title="{{ ticket.title }}">
+                    {{ ticket.title }}
+                  </div>
+                  <small class="text-muted">{{ ticket.category.name if ticket.category else 'General' }}</small>
+                </td>
+                <td>
+                  <span class="badge badge-priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
+                </td>
+                <td>
+                  <span class="badge badge-status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
+                </td>
+                <td>
+                  <small class="{% if ticket.is_overdue %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                    {{ ticket.time_remaining_display }}
+                  </small>
+                </td>
+                <td>
+                  <a href="{{ url_for('tickets.detail', reference_id=ticket.reference_id) }}" class="btn btn-sm btn-outline-info">
+                    View
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="empty-state">
+                  <div class="empty-state-icon"><i class="bi bi-inbox"></i></div>
+                  <h6>No incident tickets reported yet</h6>
+                  <p class="text-muted small">When you experience IT service or cloud issues, report them here.</p>
+                  <a href="{{ url_for('tickets.create') }}" class="btn btn-sm btn-cyan">Report Incident</a>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Notifications & System Status -->
+  <div class="col-lg-4">
+    <div class="card card-premium mb-4">
+      <div class="card-header-premium">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-bell me-2 text-info"></i> Recent Updates</h5>
+      </div>
+      <div class="p-3">
+        {% if recent_notifications %}
+          {% for notif in recent_notifications %}
+          <div class="p-2 border-bottom mb-2">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold small">{{ notif.title }}</span>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ notif.created_at|datetimeformat }}</small>
+            </div>
+            <p class="small text-muted mb-0">{{ notif.message }}</p>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted small text-center mb-0 py-3">No updates yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- IT Service SLA Info Card -->
+    <div class="card card-premium p-4">
+      <h6 class="fw-bold mb-2"><i class="bi bi-shield-check text-info me-2"></i> CloudOps 360 SLA Commitment</h6>
+      <p class="text-muted small mb-3">Our Tier 2 Support engineers prioritize and resolve incidents based on business impact:</p>
+      <div class="small">
+        <div class="d-flex justify-content-between py-1 border-bottom">
+          <span class="badge badge-priority-critical">Critical</span>
+          <span class="text-muted">4 Hours Resolution</span>
+        </div>
+        <div class="d-flex justify-content-between py-1 border-bottom">
+          <span class="badge badge-priority-high">High</span>
+          <span class="text-muted">12 Hours Resolution</span>
+        </div>
+        <div class="d-flex justify-content-between py-1 border-bottom">
+          <span class="badge badge-priority-medium">Medium</span>
+          <span class="text-muted">24 Hours Resolution</span>
+        </div>
+        <div class="d-flex justify-content-between py-1">
+          <span class="badge badge-priority-low">Low</span>
+          <span class="text-muted">72 Hours Resolution</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

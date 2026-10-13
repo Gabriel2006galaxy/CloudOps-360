@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-md-6 col-lg-5 col-xl-4">
+    <div class="card card-premium p-4 shadow-lg">
+      <div class="text-center mb-4">
+        <div class="brand-icon-box mx-auto mb-3">
+          <i class="bi bi-shield-lock-fill fs-4"></i>
+        </div>
+        <h3 class="fw-bold brand-font mb-1">Access Platform</h3>
+        <p class="text-muted small">Sign in to CloudOps 360 Security & Incident Platform</p>
+      </div>
+
+      <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}">
+        {{ form.hidden_tag() }}
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Username or Email</label>
+          <div class="input-group">
+            <span class="input-group-text bg-transparent text-muted"><i class="bi bi-person"></i></span>
+            {{ form.username_or_email(class="form-control" + (" is-invalid" if form.username_or_email.errors else ""), placeholder="admin or employee username", id="login-identifier") }}
+          </div>
+          {% for error in form.username_or_email.errors %}
+          <div class="text-danger small mt-1">{{ error }}</div>
+          {% endfor %}
+        </div>
+
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="form-label small fw-semibold">Password</label>
+          </div>
+          <div class="input-group">
+            <span class="input-group-text bg-transparent text-muted"><i class="bi bi-key"></i></span>
+            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="••••••••", id="login-password") }}
+          </div>
+          {% for error in form.password.errors %}
+          <div class="text-danger small mt-1">{{ error }}</div>
+          {% endfor %}
+        </div>
+
+        <div class="mb-3 form-check">
+          {{ form.remember_me(class="form-check-input") }}
+          <label class="form-check-label small text-muted" for="{{ form.remember_me.id }}">Remember this browser session</label>
+        </div>
+
+        <button type="submit" class="btn btn-cyan w-100 py-2 fw-semibold">
+          <i class="bi bi-box-arrow-in-right me-1"></i> Sign In to CloudOps 360
+        </button>
+      </form>
+
+      <!-- Quick Fill Role Demo Helper -->
+      <div class="mt-4 pt-3 border-top">
+        <div class="small fw-bold text-muted text-uppercase mb-2 text-center" style="font-size: 0.75rem;">
+          One-Click Demo Role Pre-fill
+        </div>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="fillCredentials('admin', 'AdminPass123!')">
+            <i class="bi bi-shield-shaded me-1"></i> Pre-fill Administrator
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="fillCredentials('tech_sarah', 'TechPass123!')">
+            <i class="bi bi-tools me-1"></i> Pre-fill Support Technician
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="fillCredentials('emp_jordan', 'EmpPass123!')">
+            <i class="bi bi-person-badge me-1"></i> Pre-fill Employee
+          </button>
+        </div>
+      </div>
+
+      <div class="text-center mt-3 text-muted small">
+        Need an account? <a href="{{ url_for('auth.register') }}" class="text-info text-decoration-none">Register here</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function fillCredentials(user, pass) {
+  document.getElementById('login-identifier').value = user;
+  document.getElementById('login-password').value = pass;
+  showToast('Credentials Populated', `Selected ${user}. Click "Sign In" to proceed.`, 'info');
+}
+</script>
+{% endblock %}

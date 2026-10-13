@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}SLA Policy Management — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">Service Level Agreement (SLA) Engine</h2>
+    <p class="text-muted small mb-0">Configure operational response and resolution target thresholds by incident priority.</p>
+  </div>
+  <button class="btn btn-cyan shadow-sm" data-bs-toggle="modal" data-bs-target="#editSlaModal">
+    <i class="bi bi-pencil-square me-1"></i> Configure Policy
+  </button>
+</div>
+
+<!-- SLA Compliance Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">SLA Compliance Rate</div>
+          <div class="fs-2 fw-bold mt-1 text-success">{{ sla_metrics.compliance_rate }}%</div>
+        </div>
+        <div class="stat-icon-wrapper bg-success-subtle text-success">
+          <i class="bi bi-award"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Active Overdue</div>
+          <div class="fs-2 fw-bold mt-1 text-danger">{{ sla_metrics.overdue_count }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-danger-subtle text-danger">
+          <i class="bi bi-alarm"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Resolved Within SLA</div>
+          <div class="fs-2 fw-bold mt-1 text-info">{{ sla_metrics.resolved_within_sla }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-info-subtle text-info">
+          <i class="bi bi-shield-check"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Breached Incidents</div>
+          <div class="fs-2 fw-bold mt-1 text-warning">{{ sla_metrics.breached_count }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-warning-subtle text-warning">
+          <i class="bi bi-exclamation-triangle"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Policies Table -->
+<div class="card card-premium mb-4">
+  <div class="card-header-premium">
+    <h5 class="mb-0 fw-bold"><i class="bi bi-stopwatch-fill me-2 text-info"></i> Active Priority Policies</h5>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-premium align-middle">
+      <thead>
+        <tr>
+          <th>Priority Tier</th>
+          <th>First Response Target</th>
+          <th>Resolution Target</th>
+          <th>Description & Scope</th>
+          <th>Last Configured</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in policies %}
+        <tr>
+          <td>
+            <span class="badge badge-priority-{{ p.priority|lower }} fs-6">{{ p.priority }}</span>
+          </td>
+          <td>
+            <span class="fw-semibold text-info">{{ p.response_time_hours }} Hours</span>
+          </td>
+          <td>
+            <span class="fw-semibold text-warning">{{ p.resolution_time_hours }} Hours</span>
+          </td>
+          <td class="small text-muted">{{ p.description or '—' }}</td>
+          <td class="small text-muted">{{ p.updated_at|dateformat }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Configure SLA Policy -->
+<div class="modal fade" id="editSlaModal" tabindex="-1" aria-labelledby="editSlaModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content card-premium">
+      <form action="{{ url_for('admin.sla') }}" method="POST">
+        {{ form.hidden_tag() }}
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold" id="editSlaModalLabel">Configure Priority SLA Policy</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Priority Tier</label>
+            {{ form.priority(class="form-select") }}
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Response Target (Hours) <span class="text-danger">*</span></label>
+              {{ form.response_time_hours(class="form-control", type="number", min="1") }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Resolution Target (Hours) <span class="text-danger">*</span></label>
+              {{ form.resolution_time_hours(class="form-control", type="number", min="1") }}
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Policy Description</label>
+            {{ form.description(class="form-control", rows=2) }}
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-cyan">Save SLA Policy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Administration — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">Executive Cloud Operations Center</h2>
+    <p class="text-muted small mb-0">System-wide health analytics, SLA compliance, resource allocation, and audit forensics.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-people me-1"></i> Manage Users
+    </a>
+    <a href="{{ url_for('admin.sla') }}" class="btn btn-outline-info">
+      <i class="bi bi-stopwatch me-1"></i> SLA Configuration
+    </a>
+  </div>
+</div>
+
+<!-- Primary KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Total Incidents</div>
+          <div class="fs-2 fw-bold mt-1">{{ total_tickets }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-primary-subtle text-primary">
+          <i class="bi bi-hdd-stack"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Active Open Queue</div>
+          <div class="fs-2 fw-bold mt-1 text-warning">{{ open_tickets }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-warning-subtle text-warning">
+          <i class="bi bi-activity"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">SLA Compliance</div>
+          <div class="fs-2 fw-bold mt-1 {% if sla_data.compliance_rate >= 90 %}text-success{% else %}text-danger{% endif %}">
+            {{ sla_data.compliance_rate }}%
+          </div>
+        </div>
+        <div class="stat-icon-wrapper bg-success-subtle text-success">
+          <i class="bi bi-patch-check"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Active Users</div>
+          <div class="fs-2 fw-bold mt-1 text-info">{{ total_users }}</div>
+        </div>
+        <div class="stat-icon-wrapper bg-info-subtle text-info">
+          <i class="bi bi-person-check"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Interactive Analytics Charts -->
+<div class="row g-4 mb-4">
+  <!-- Priority Breakdown -->
+  <div class="col-lg-4">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium">
+        <h5 class="mb-0 fw-bold small text-uppercase">Incidents by Priority</h5>
+      </div>
+      <div class="p-3 d-flex flex-column align-items-center justify-content-center" style="height: 280px;">
+        <canvas id="adminPriorityChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Distribution -->
+  <div class="col-lg-4">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium">
+        <h5 class="mb-0 fw-bold small text-uppercase">Workflow Status Distribution</h5>
+      </div>
+      <div class="p-3 d-flex flex-column align-items-center justify-content-center" style="height: 280px;">
+        <canvas id="adminStatusChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Breakdown -->
+  <div class="col-lg-4">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium">
+        <h5 class="mb-0 fw-bold small text-uppercase">Incident Categories</h5>
+      </div>
+      <div class="p-3" style="height: 280px;">
+        <canvas id="adminCategoryChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Support Staff Workload & Audit Logs -->
+<div class="row g-4 mb-4">
+  <!-- Staff Workload -->
+  <div class="col-lg-5">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-person-workspace me-2 text-info"></i> Support Technician Workload</h5>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-premium align-middle">
+          <thead>
+            <tr>
+              <th>Technician</th>
+              <th>Active Tickets</th>
+              <th>Resolved</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in technician_workload %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ item.user.full_name }}</div>
+                <small class="text-muted">{{ item.user.department or 'Cloud Support' }}</small>
+              </td>
+              <td>
+                <span class="badge bg-warning-subtle text-warning border border-warning px-2">
+                  {{ item.active_count }} Active
+                </span>
+              </td>
+              <td>
+                <span class="badge bg-success-subtle text-success border border-success px-2">
+                  {{ item.resolved_count }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Audit Events -->
+  <div class="col-lg-7">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-shield-shaded me-2 text-info"></i> Recent Audit Events</h5>
+        <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-sm btn-outline-secondary">View Full Log</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-premium align-middle small">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Action</th>
+              <th>Actor</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if recent_audits %}
+              {% for log in recent_audits %}
+              <tr>
+                <td class="text-nowrap text-muted">{{ log.created_at|datetimeformat }}</td>
+                <td><span class="badge bg-secondary-subtle text-body border">{{ log.action }}</span></td>
+                <td>{{ log.actor.username if log.actor else 'System' }}</td>
+                <td class="text-truncate" style="max-width: 250px;" title="{{ log.details }}">
+                  {{ log.details }}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="4" class="text-center py-3 text-muted">No audit events logged yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Priority Chart
+  const priorityLabels = ['Critical', 'High', 'Medium', 'Low'];
+  const priorityData = [
+    {{ priority_counts['Critical'] }},
+    {{ priority_counts['High'] }},
+    {{ priority_counts['Medium'] }},
+    {{ priority_counts['Low'] }}
+  ];
+  renderPriorityChart('adminPriorityChart', priorityLabels, priorityData);
+
+  // Status Chart
+  const statusLabels = ['Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'];
+  const statusData = [
+    {{ status_counts['Open'] }},
+    {{ status_counts['Assigned'] }},
+    {{ status_counts['In Progress'] }},
+    {{ status_counts['Resolved'] }},
+    {{ status_counts['Closed'] }}
+  ];
+  renderStatusChart('adminStatusChart', statusLabels, statusData);
+
+  // Category Chart
+  const catLabels = {{ category_labels|tojson }};
+  const catData = {{ category_counts|tojson }};
+  renderCategoryChart('adminCategoryChart', catLabels, catData);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Operations Analytics — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">Operational Analytics & Reports</h2>
+    <p class="text-muted small mb-0">High-level telemetry, breakdown charts, and service level delivery performance.</p>
+  </div>
+  <a href="{{ url_for('admin.sla') }}" class="btn btn-outline-info">
+    <i class="bi bi-gear me-1"></i> SLA Configuration
+  </a>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Priority Doughnut -->
+  <div class="col-lg-6">
+    <div class="card card-premium p-4 h-100">
+      <h5 class="fw-bold mb-3 small text-uppercase"><i class="bi bi-pie-chart text-danger me-2"></i> Incident Priority Distribution</h5>
+      <div style="height: 300px;">
+        <canvas id="analyticsPriorityChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Doughnut -->
+  <div class="col-lg-6">
+    <div class="card card-premium p-4 h-100">
+      <h5 class="fw-bold mb-3 small text-uppercase"><i class="bi bi-arrow-repeat text-info me-2"></i> Workflow Status Pipeline</h5>
+      <div style="height: 300px;">
+        <canvas id="analyticsStatusChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Bar Chart -->
+  <div class="col-12">
+    <div class="card card-premium p-4">
+      <h5 class="fw-bold mb-3 small text-uppercase"><i class="bi bi-bar-chart-line text-cyan me-2"></i> Incident Volume Across Infrastructure Categories</h5>
+      <div style="height: 320px;">
+        <canvas id="analyticsCategoryChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const pLabels = ['Critical', 'High', 'Medium', 'Low'];
+  const pData = [
+    {{ priority_data['Critical'] }},
+    {{ priority_data['High'] }},
+    {{ priority_data['Medium'] }},
+    {{ priority_data['Low'] }}
+  ];
+  renderPriorityChart('analyticsPriorityChart', pLabels, pData);
+
+  const sLabels = ['Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'];
+  const sData = [
+    {{ status_data['Open'] }},
+    {{ status_data['Assigned'] }},
+    {{ status_data['In Progress'] }},
+    {{ status_data['Resolved'] }},
+    {{ status_data['Closed'] }}
+  ];
+  renderStatusChart('analyticsStatusChart', sLabels, sData);
+
+  const catLabels = {{ category_chart.keys()|list|tojson }};
+  const catData = {{ category_chart.values()|list|tojson }};
+  renderCategoryChart('analyticsCategoryChart', catLabels, catData);
+});
+</script>
+{% endblock %}

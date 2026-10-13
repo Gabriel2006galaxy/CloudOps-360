@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User {{ user.username }} — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+  <div class="col-md-7 col-lg-6">
+    <div class="card card-premium p-4 shadow">
+      <div class="d-flex align-items-center justify-content-between mb-4 border-bottom pb-3">
+        <div>
+          <h3 class="fw-bold brand-font mb-1">Edit User Account</h3>
+          <p class="text-muted small mb-0">Modify identity credentials, role permissions, or reset access.</p>
+        </div>
+        <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i> Back to Users
+        </a>
+      </div>
+
+      <form method="POST">
+        {{ form.hidden_tag() }}
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Username</label>
+          <input type="text" class="form-control" value="{{ user.username }}" disabled>
+          <small class="text-muted">Primary unique system identifier.</small>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Full Name</label>
+          {{ form.full_name(class="form-control") }}
+        </div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Email Address</label>
+            {{ form.email(class="form-control") }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Role</label>
+            {{ form.role(class="form-select") }}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Department</label>
+          {{ form.department(class="form-control") }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Reset Password (Optional)</label>
+          {{ form.new_password(class="form-control", placeholder="Leave blank to maintain current password") }}
+        </div>
+
+        <div class="mb-4 form-check">
+          {{ form.is_active(class="form-check-input") }}
+          <label class="form-check-label small fw-semibold" for="{{ form.is_active.id }}">Account Active</label>
+        </div>
+
+        <button type="submit" class="btn btn-cyan px-4">
+          <i class="bi bi-save me-1"></i> Update User Account
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

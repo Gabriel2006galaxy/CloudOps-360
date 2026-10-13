@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}403 Forbidden — Access Denied{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-md-7 col-lg-6 text-center">
+    <div class="card card-premium p-5 shadow">
+      <div class="empty-state-icon text-danger mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2.5rem;">
+        <i class="bi bi-shield-slash"></i>
+      </div>
+      <h2 class="fw-bold brand-font mb-2">403 — Authorization Denied</h2>
+      <p class="text-muted mb-4">
+        You do not possess the required server-side role permissions to view this resource or perform this action. This security event has been recorded in the forensics audit trail.
+      </p>
+      <div>
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-cyan px-4">
+          <i class="bi bi-speedometer2 me-1"></i> Return to Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

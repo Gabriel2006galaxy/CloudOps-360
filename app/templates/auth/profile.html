@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}User Profile — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+  <div class="col-md-8 col-lg-7">
+    <div class="card card-premium p-4 shadow">
+      <div class="d-flex align-items-center justify-content-between mb-4 border-bottom pb-3">
+        <div>
+          <h3 class="fw-bold brand-font mb-1">Account Settings</h3>
+          <p class="text-muted small mb-0">Manage profile identity and password credentials</p>
+        </div>
+        <span class="badge {{ current_user.role_badge_class }} fs-6">{{ current_user.role|capitalize }}</span>
+      </div>
+
+      <form method="POST" action="{{ url_for('auth.profile') }}">
+        {{ form.hidden_tag() }}
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Username</label>
+            <input type="text" class="form-control" value="{{ current_user.username }}" disabled>
+            <small class="text-muted">Username cannot be changed.</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Email</label>
+            <input type="text" class="form-control" value="{{ current_user.email }}" disabled>
+            <small class="text-muted">Primary identity email.</small>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Full Name</label>
+            {{ form.full_name(class="form-control" + (" is-invalid" if form.full_name.errors else "")) }}
+            {% for error in form.full_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Department</label>
+            {{ form.department(class="form-control" + (" is-invalid" if form.department.errors else "")) }}
+            {% for error in form.department.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <h5 class="fw-bold mb-3 border-top pt-3">Security & Password</h5>
+        
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Current Password</label>
+          {{ form.current_password(class="form-control" + (" is-invalid" if form.current_password.errors else ""), placeholder="Required only if changing password") }}
+          {% for error in form.current_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">New Password</label>
+            {{ form.new_password(class="form-control" + (" is-invalid" if form.new_password.errors else ""), placeholder="Leave blank to keep unchanged") }}
+            {% for error in form.new_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Confirm New Password</label>
+            {{ form.confirm_new_password(class="form-control" + (" is-invalid" if form.confirm_new_password.errors else ""), placeholder="Confirm new password") }}
+            {% for error in form.confirm_new_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-cyan px-4">
+          <i class="bi bi-save me-1"></i> Save Changes
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

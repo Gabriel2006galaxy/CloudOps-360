@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}User Management — CloudOps 360{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold brand-font mb-1">User Directory & Role Management</h2>
+    <p class="text-muted small mb-0">Administer system users, role-based access privileges (RBAC), and account status.</p>
+  </div>
+  <button class="btn btn-cyan shadow-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
+    <i class="bi bi-person-plus me-1"></i> Add New User
+  </button>
+</div>
+
+<!-- Search & Role Filter Bar -->
+<div class="card card-premium p-3 mb-4">
+  <form method="GET" action="{{ url_for('admin.users') }}">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search"></i></span>
+          <input type="text" name="search" class="form-control" placeholder="Search name, username, email, department..." value="{{ current_search }}">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select name="role" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Roles</option>
+          <option value="admin" {% if current_role == 'admin' %}selected{% endif %}>Administrator</option>
+          <option value="technician" {% if current_role == 'technician' %}selected{% endif %}>Support Technician</option>
+          <option value="employee" {% if current_role == 'employee' %}selected{% endif %}>Employee</option>
+        </select>
+      </div>
+      <div class="col-md-4 d-flex gap-2 justify-content-md-end">
+        <button type="submit" class="btn btn-sm btn-cyan">Filter</button>
+        {% if current_search or current_role %}
+        <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Users Table -->
+<div class="card card-premium">
+  <div class="table-responsive">
+    <table class="table table-premium align-middle">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Role</th>
+          <th>Department</th>
+          <th>Status</th>
+          <th>Last Login</th>
+          <th>Created</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="avatar-circle bg-secondary text-white fw-bold rounded-circle d-flex align-items-center justify-content-center" style="width: 34px; height: 34px;">
+                {{ u.full_name[:1] }}
+              </div>
+              <div>
+                <div class="fw-semibold">{{ u.full_name }}</div>
+                <small class="text-muted">{{ u.email }} &bull; <code>{{ u.username }}</code></small>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge {{ u.role_badge_class }}">{{ u.role|capitalize }}</span>
+          </td>
+          <td>{{ u.department or '—' }}</td>
+          <td>
+            {% if u.is_active %}
+            <span class="badge bg-success-subtle text-success border border-success">Active</span>
+            {% else %}
+            <span class="badge bg-danger-subtle text-danger border border-danger">Deactivated</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ u.last_login_at|datetimeformat if u.last_login_at else 'Never' }}</td>
+          <td class="small text-muted">{{ u.created_at|dateformat }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-outline-info me-1" title="Edit User">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% if u.id != current_user.id %}
+            <form action="{{ url_for('admin.toggle_user_status', user_id=u.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Toggle active status for user {{ u.username }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm {% if u.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}" title="Toggle Active">
+                <i class="bi {% if u.is_active %}bi-person-x{% else %}bi-person-check{% endif %}"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Create New User -->
+<div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content card-premium">
+      <form action="{{ url_for('admin.users') }}" method="POST">
+        {{ create_form.hidden_tag() }}
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold" id="createUserModalLabel">Create New System User</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Full Name <span class="text-danger">*</span></label>
+            {{ create_form.full_name(class="form-control", placeholder="e.g. John Doe") }}
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Username <span class="text-danger">*</span></label>
+              {{ create_form.username(class="form-control", placeholder="jdoe") }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Role <span class="text-danger">*</span></label>
+              {{ create_form.role(class="form-select") }}
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Email Address <span class="text-danger">*</span></label>
+            {{ create_form.email(class="form-control", placeholder="jdoe@company.internal") }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Department</label>
+            {{ create_form.department(class="form-control", placeholder="e.g. Cloud Ops, Finance") }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Initial Password <span class="text-danger">*</span></label>
+            {{ create_form.password(class="form-control", placeholder="Min 8 characters") }}
+          </div>
+          <div class="form-check">
+            {{ create_form.is_active(class="form-check-input") }}
+            <label class="form-check-label small" for="{{ create_form.is_active.id }}">Activate account immediately</label>
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-cyan">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
