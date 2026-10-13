@@ -113,6 +113,26 @@ or `infrastructure/aws/rds_mysql_setup.sql`), then `flask db upgrade && flask se
 If `DATABASE_URL` is empty in development, the app falls back to a local SQLite file with a
 warning (`ALLOW_SQLITE_FALLBACK`). Production never falls back.
 
+### Run in GitHub Codespaces (quick demo, SQLite)
+
+`.env` is never on GitHub, so a Codespace has no MySQL settings and uses the SQLite fallback.
+A new Codespace sets itself up automatically (`.devcontainer/devcontainer.json` installs the
+requirements and runs `flask db upgrade` + `flask seed-db`). Then:
+
+```bash
+python run.py
+```
+Open the **Ports** tab → port **5000** → *Open in Browser*, and sign in with the demo accounts below.
+
+In a Codespace created **before** the devcontainer existed, run the setup once yourself:
+```bash
+pip install -r requirements.txt
+python -m flask db upgrade
+python -m flask seed-db
+FLASK_HOST=0.0.0.0 python run.py
+```
+If the start-up log says *"The database has no tables yet"*, the two `flask` commands were not run.
+
 ## 4. Local MySQL with Docker Compose (alternative)
 
 Add `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` and `SECRET_KEY` to `.env`, set

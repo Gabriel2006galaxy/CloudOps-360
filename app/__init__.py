@@ -57,7 +57,25 @@ def create_app(config_name=None, config_overrides=None):
     register_security_hooks(app)
     register_error_handlers(app)
     register_commands(app)
+    if app.config.get('ENV_NAME') == 'development':
+        warn_if_database_not_ready(app)
     return app
+
+
+def warn_if_database_not_ready(app):
+    """Explain a fresh checkout's missing setup instead of failing later with 'no such table'."""
+    from sqlalchemy import inspect
+
+    with app.app_context():
+        try:
+            ready = inspect(db.engine).has_table('users')
+        except Exception as exc:  # noqa: BLE001 - e.g. MySQL not running
+            app.logger.warning("[Setup] Cannot connect to the database (%s). Check DATABASE_URL in .env "
+                               "and that MySQL is running.", type(exc).__name__)
+            return
+    if not ready:
+        app.logger.warning("[Setup] The database has no tables yet. Run:  flask db upgrade  then  flask seed-db  "
+                           "(demo accounts), then start the app again.")
 
 
 def register_template_helpers(app):
