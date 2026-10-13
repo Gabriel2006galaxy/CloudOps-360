@@ -1,172 +1,92 @@
-# CloudOps 360 — Three-Lab Implementation & Demonstration Guides
+# CloudOps 360 — Lab 1 / Lab 2 / Lab 3 Demonstration Guides
 
-This guide provides step-by-step walkthroughs, exact commands, and presentation checklists for each session of the **AWS Cloud Computing Lab (CCLab)** project.
+All three labs use the **same repository and code**; each lab only changes configuration and AWS
+resources. Previous-lab functionality keeps working. Detailed AWS steps: `docs/aws_deployment.md`.
 
----
+Prepare before every demo:
+* Local: `flask seed-db` gives demo accounts (`admin`, `tech_sarah`, `tech_marcus`, `emp_jordan`, `emp_elena`).
+* AWS: demo accounts are **not** seeded in production. Create users with `flask create-admin`, then
+  add one technician and two employees in *Users & Roles*.
 
-# LAB 1: Dynamic Website Deployment
-
-### Lab 1 Objectives
-1. Build and run the responsive Flask web application locally and on an Amazon EC2 Linux instance.
-2. Demonstrate authentication, role routing, and persistent ticket operations (Create, List, Detail, Status Updates).
-3. Prove that tickets and user sessions persist across page refreshes and server restarts.
-
-### Lab 1 Step-by-Step Setup
-1. **Launch EC2 Instance**:
-   - AMI: Amazon Linux 2023 (Free-tier eligible, `t3.micro`).
-   - Security Group: Allow Inbound `TCP 80` (HTTP) from `0.0.0.0/0`, `TCP 22` (SSH) from your IP.
-2. **Connect via SSH & Clone Repository**:
-   ```bash
-   ssh -i your-key.pem ec2-user@<EC2-PUBLIC-IP>
-   sudo dnf update -y
-   sudo dnf install -y git python3.11 python3.11-pip nginx
-   git clone https://github.com/Gabriel2006galaxy/CloudOps-360.git /var/www/cloudops-360
-   cd /var/www/cloudops-360
-   ```
-3. **Configure Environment & Dependencies**:
-   ```bash
-   python3.11 -m venv .venv
-   source .venv/bin/activate
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   cp .env.example .env
-   # Generate secret key
-   python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_hex(32))" >> .env
-   ```
-4. **Initialize Database & Seed Demonstration Accounts**:
-   ```bash
-   flask db upgrade
-   flask seed-db --no-input
-   ```
-5. **Configure Gunicorn Systemd Service & Nginx**:
-   ```bash
-   sudo cp infrastructure/aws/cloudops360.service /etc/systemd/system/
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now cloudops360
-   sudo cp infrastructure/aws/nginx.conf /etc/nginx/conf.d/cloudops360.conf
-   sudo systemctl enable --now nginx
-   ```
-
-### Lab 1 Demonstration Checklist
-- [ ] Open browser to `http://<EC2-PUBLIC-IP>/` and show the branded CloudOps 360 landing page.
-- [ ] Log in as Employee (`emp_jordan` / `EmpPass123!`) and show the Employee IT Service Dashboard.
-- [ ] Create a new incident ticket (e.g. `INC-2026-00006`: *"EC2 Latency in us-east-1"* with Medium priority).
-- [ ] Show the generated ticket reference and initial `Open` status badge.
-- [ ] Log out and log in as Support Technician (`tech_sarah` / `TechPass123!`).
-- [ ] Navigate to **Technician Center -> Queue & Workload** and claim the newly created ticket.
-- [ ] Change the status to `In Progress` and add a comment.
-- [ ] Refresh the browser and restart the service (`sudo systemctl restart cloudops360`) to prove persistence.
+Tick each box only after you have seen it work.
 
 ---
 
-# LAB 2: Amazon RDS + Amazon EFS Integration
+## Lab 1 — Dynamic website
 
-### Lab 2 Objectives
-1. Migrate database storage from local SQLite to a managed **Amazon RDS MySQL** instance.
-2. Mount **Amazon EFS** on the EC2 instance for shared diagnostic file attachments.
-3. Demonstrate secure file uploads, download verification, metadata storage in RDS, and physical existence of attachments on EFS.
-4. Demonstrate multi-instance shared consistency (files uploaded on Instance 1 accessible from Instance 2).
+**Goal:** responsive Flask site with authentication, roles, MySQL persistence and the ticket workflow, deployed on EC2.
 
-### Lab 2 Step-by-Step Setup
-1. **Create Amazon RDS for MySQL**:
-   - Engine: MySQL 8.0 Community Edition.
-   - DB Instance Class: `db.t3.micro` (Free-tier eligible).
-   - Storage: 20 GB gp3 SSD.
-   - Master username: `admin`, Master password: `<YourPassword>`.
-   - Security Group `sg-rds`: Allow Inbound `TCP 3306` from `sg-ec2`.
-2. **Initialize RDS Database**:
-   - Connect from EC2 using mysql client:
-     ```bash
-     mysql -h <RDS-ENDPOINT> -u admin -p < infrastructure/aws/rds_mysql_setup.sql
-     ```
-3. **Create Amazon EFS File System**:
-   - Name: `cloudops360-attachments-efs`.
-   - Performance: General Purpose.
-   - Encryption: KMS Enabled.
-   - Mount Targets: Create in same subnets as EC2 instances.
-   - Security Group `sg-efs`: Allow Inbound `TCP 2049` (NFS) from `sg-ec2`.
-4. **Mount EFS on EC2**:
-   ```bash
-   sudo dnf install -y amazon-efs-utils
-   sudo bash infrastructure/aws/efs_mount_setup.sh <EFS-FILESYSTEM-ID> us-east-1
-   ```
-5. **Update EC2 `.env`**:
-   ```ini
-   DATABASE_URL=mysql+pymysql://cloudops_user:<YourPassword>@<RDS-ENDPOINT>:3306/cloudops360
-   UPLOAD_FOLDER=/mnt/efs/cloudops360-attachments
-   ```
-6. **Migrate & Seed RDS**:
-   ```bash
-   flask db upgrade
-   flask seed-db --no-input
-   sudo systemctl restart cloudops360
-   ```
+Setup: `ec2_bootstrap.sh` → `lab1_mariadb_on_ec2.sh` → `flask create-admin` (aws_deployment.md §1).
 
-### Lab 2 Demonstration Checklist
-- [ ] Show `df -h /mnt/efs/cloudops360-attachments` proving active Amazon EFS mount on EC2.
-- [ ] Open CloudOps 360 in browser, log in as `emp_jordan`, and open an incident ticket.
-- [ ] Upload a screenshot or log file (`diagnostic_trace.log`).
-- [ ] Show the attachment record in the web interface with sanitized metadata and size.
-- [ ] In the EC2 terminal, run `ls -la /mnt/efs/cloudops360-attachments/` to display the actual encrypted UUID file stored on EFS.
-- [ ] In the MySQL terminal, run `SELECT id, filename, original_filename, storage_path FROM attachments;` proving metadata is stored in RDS.
-- [ ] Click **Download** in the browser to prove safe streaming with download headers.
-- [ ] If 2 EC2 instances are configured, open the file download link on Instance 2 to prove both instances read the same EFS store.
+| ✓ | Demonstration | How |
+| :-: | :--- | :--- |
+| ☐ | Site live on EC2 | Open `http://<public-ip>/` — landing page loads; `curl http://<public-ip>/health` → `healthy`, `engine: mysql` |
+| ☐ | Responsive UI | Resize / phone: sidebar collapses to a menu; light/dark toggle persists |
+| ☐ | Authentication | Wrong password → error; 5 wrong attempts → "Too many failed sign-in attempts" (429) |
+| ☐ | Role dashboards | Sign in as admin, technician, employee → three different dashboards |
+| ☐ | Create ticket | Employee: *Report Incident* → reference `INC-2026-000NN`, SLA deadline shown |
+| ☐ | Listing & filters | *My Tickets*: search, status/priority/category/date filters, sort by column, pagination |
+| ☐ | Status updates | Technician: *Claim* → *Start Work* → *Resolve* (summary required) → employee *Confirm & Close* |
+| ☐ | Persistence | Refresh; `sudo systemctl restart cloudops360`; reboot the instance → tickets still there |
+| ☐ | Data in MySQL | `mysql -u cloudops_user -p -h 127.0.0.1 cloudops360 -e "SELECT reference_id,status FROM tickets;"` |
+| ☐ | Nginx + Gunicorn | `systemctl status nginx cloudops360`; `ss -ltn` shows Gunicorn only on 127.0.0.1:8000 |
 
 ---
 
-# LAB 3: AWS Security, RBAC & End-to-End Governance
+## Lab 2 — Amazon RDS + Amazon EFS
 
-### Lab 3 Objectives
-1. Configure IAM instance role (`CloudOps360-EC2-Role`) and remove all local database credentials using **AWS Secrets Manager**.
-2. Configure TLS/HTTPS and verify least-privilege network security groups.
-3. Demonstrate strict server-side **Role-Based Access Control (RBAC)**:
-   - Denied unauthorized ticket access.
-   - Confidentiality of Technician Private Internal Notes.
-   - Denial of unauthorized attachment downloads.
-   - Denial of unauthorized admin elevation.
-4. Demonstrate real-time **SLA deadline monitoring**, overdue ticket alerting, and compliance audit trail.
+**Goal:** move data to RDS for MySQL and attachments to EFS; metadata in RDS, bytes on EFS.
 
-### Lab 3 Step-by-Step Setup
-1. **Store RDS Credentials in AWS Secrets Manager**:
-   - Secret Name: `cloudops360/production/db-secret`.
-   - Secret Type: Credentials for Amazon RDS database.
-   - Keys: `username`, `password`, `host`, `port`, `dbname`.
-2. **Attach IAM Role to EC2**:
-   - Create IAM Role `CloudOps360-EC2-Role` using `infrastructure/aws/iam_instance_profile_policy.json`.
-   - In AWS Console, select EC2 instance -> **Actions -> Security -> Modify IAM Role** -> select `CloudOps360-EC2-Role`.
-3. **Configure Secrets Manager Resolution in `.env`**:
-   ```ini
-   AWS_REGION=us-east-1
-   AWS_SECRETS_NAME=cloudops360/production/db-secret
-   # Remove or comment out raw DATABASE_URL
-   ```
-4. **Verify Application Resolves DB Credentials from IAM & Secrets Manager**:
-   ```bash
-   sudo systemctl restart cloudops360
-   sudo journalctl -u cloudops360 -n 20 --no-pager
-   ```
-5. **Run Automated Test Suite**:
-   ```bash
-   pytest -v
-   ```
+Setup: aws_deployment.md §2 (RDS → `DATABASE_URL` + `DB_SSL_CA`; EFS → `efs_mount_setup.sh`, `STORAGE_BACKEND=efs`).
 
-### Lab 3 Demonstration Checklist
-- [ ] **Secrets Manager Verification**: Show EC2 logs demonstrating database URI dynamically fetched via AWS SDK without hardcoded credentials in `.env`.
-- [ ] **RBAC Isolation Demo**:
-  - Log in as Employee 1 (`emp_jordan`). Note reference `INC-2026-00001`.
-  - Log out and log in as Employee 2 (`emp_elena`).
-  - Attempt to navigate directly to `http://<IP>/tickets/INC-2026-00001`.
-  - Show that CloudOps 360 blocks access with **HTTP 403 Forbidden**.
-- [ ] **Internal Technician Note Privacy Demo**:
-  - Log in as Technician (`tech_sarah`) and view `INC-2026-00001`.
-  - Show the amber-bordered private internal note: *"[INTERNAL TECHNICIAN NOTE - CONFIDENTIAL] Root cause suspected to be unindexed SQL query..."*.
-  - Log in as Employee (`emp_jordan`) and view the same ticket.
-  - Prove that the internal technician note is completely absent from the Employee view.
-- [ ] **SLA Engine & Overdue Detection**:
-  - Log in as Administrator (`admin` / `AdminPass123!`).
-  - View the **Admin Dashboard** and **SLA Policies**.
-  - Show the pulsing red **SLA OVERDUE** badge on `INC-2026-00005`.
-  - Show the SLA Compliance Rate calculation and breakdown charts.
-- [ ] **Audit Trail Forensics**:
-  - Open **Administration -> Audit Trail**.
-  - Show logged audit events with timestamps, actor IDs, client IP addresses, and action codes (`AUTH_LOGIN_SUCCESS`, `TICKET_CLAIM`, `ATTACHMENT_DOWNLOAD`).
+| ✓ | Demonstration | How |
+| :-: | :--- | :--- |
+| ☐ | App runs on RDS | `/health` → database `connected`; `verify_deployment.sh` prints the RDS host resolving to a **private** IP |
+| ☐ | CRUD on RDS | Create, update, comment, resolve a ticket; show rows from the instance: `mysql -h <rds-endpoint> -u cloudops_user -p --ssl-ca=/etc/pki/rds/global-bundle.pem cloudops360 -e "SELECT reference_id,status,technician_id FROM tickets ORDER BY id DESC LIMIT 5;"` |
+| ☐ | RDS not public | RDS console: *Publicly accessible: No*; security group source = web SG |
+| ☐ | EFS mounted with TLS | `findmnt /mnt/efs` (type `nfs4` via efs-utils, `tls` in `/etc/fstab`) |
+| ☐ | Secure upload | Upload a PNG screenshot and a `.log` file to a ticket |
+| ☐ | Invalid uploads rejected | Rename an `.exe` to `.png` → "content does not match"; file > 10 MB → rejected |
+| ☐ | Metadata in RDS | `SELECT id,original_filename,storage_path,file_size,checksum_sha256 FROM attachments;` |
+| ☐ | File on EFS | `sudo ls -l /mnt/efs/cloudops360-attachments/<YYYY>/<MM>/` shows `<uuid>.png` (no user filename) |
+| ☐ | Integrity | `flask storage-check` → `N ok, 0 missing, 0 checksum mismatches` |
+| ☐ | Authorized download | Creator / assigned technician / admin download works; another employee gets **403** |
+| ☐ | (Optional) two instances share files | Upload via instance A, download via instance B; `/health` shows different `instance`, same files; `storage-check` OK on both |
+
+---
+
+## Lab 3 — Security + integration
+
+**Goal:** IAM role, Secrets Manager, encryption, HTTPS, private networking, RBAC, audit logs, SLA tracking and analytics.
+
+Setup: aws_deployment.md §3. Then run `verify_deployment.sh` and keep its output.
+
+| ✓ | Demonstration | How |
+| :-: | :--- | :--- |
+| ☐ | IAM role, no keys | `verify_deployment.sh`: role attached, *no static AWS access keys*; show the least-privilege policy JSON |
+| ☐ | Secrets Manager | env file has `DB_SECRET_NAME`/`APP_SECRET_NAME` and **no** `DATABASE_URL`/`SECRET_KEY`; app still connects |
+| ☐ | Fail closed | Temporarily set a wrong `DB_SECRET_NAME` → service fails to start, log shows `SecretResolutionError` (no secret values); restore |
+| ☐ | HTTPS | `https://` loads; `http://` redirects; `Strict-Transport-Security` header present; `SESSION_COOKIE_SECURE=true` |
+| ☐ | TLS to RDS | `verify_deployment.sh` → `database connection encrypted: TLSv1.2/1.3` |
+| ☐ | Encryption at rest | CloudShell: RDS `StorageEncrypted: true`, EFS `Encrypted: true` |
+| ☐ | Private networking | Security-group rules: 3306 and 2049 only from web SG; SSH from one IP |
+| ☐ | Denied: employee → other's ticket | As `employee A`, open employee B's ticket URL → **403** |
+| ☐ | Denied: employee → admin pages | `/admin/users` → **403** |
+| ☐ | Denied: privilege escalation | Browser dev tools: add `role=admin` to the profile form → still employee |
+| ☐ | Denied: protected attachment | Copy an attachment URL, open as another employee → **403** |
+| ☐ | Denied: invalid transition | Technician on someone else's ticket cannot act; resolving without summary is refused |
+| ☐ | Internal notes private | Technician posts internal note → visible to staff, invisible to the employee |
+| ☐ | Audit trail | *Audit Trail*: filter `TICKET_UNAUTHORIZED_ACCESS`, `ATTACHMENT_UNAUTHORIZED_DOWNLOAD`, `ACCESS_DENIED_RBAC`, `ADMIN_ROLE_CHANGE`, `AUTH_LOGIN_LOCKED`; export CSV |
+| ☐ | Full lifecycle | Open → Assigned (admin assigns) → In Progress → Resolved → Closed → Reopen; status history on the ticket |
+| ☐ | SLA tracking | Critical ticket shows countdown; *Overdue Incidents* list; change SLA policy with "recalculate active tickets" |
+| ☐ | Analytics | Admin dashboard and *Analytics*: trend, priority, status, category, technician workload — numbers match `SELECT` counts |
+| ☐ | Notifications | Assignment, comment and status change create notifications; unread badge; mark all read |
+
+---
+
+## Local rehearsal (before each lab)
+```powershell
+.venv\Scripts\python -m pytest -q
+.venv\Scripts\flask seed-db
+.venv\Scripts\python run.py     # http://127.0.0.1:5000
+```

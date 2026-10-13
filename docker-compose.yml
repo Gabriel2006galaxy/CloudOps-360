@@ -1,29 +1,31 @@
-version: '3.8'
+# Local development stack: MySQL 8.0 (mirrors Amazon RDS for MySQL) + the Flask app.
+# Credentials come from your gitignored .env:
+#   MYSQL_ROOT_PASSWORD=...   MYSQL_PASSWORD=...
+# Start:  docker compose up -d db      (database only; run Flask from your venv)
+#         docker compose up --build    (database + app on http://localhost:5000)
 
 services:
-  # MySQL 8.0 Local Database Container
-  # Mirrors Amazon RDS for MySQL configuration locally
   db:
     image: mysql:8.0
     container_name: cloudops360-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: RootDevelopmentPassword123!
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: cloudops360
       MYSQL_USER: cloudops_user
-      MYSQL_PASSWORD: CloudOpsDevPassword123!
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"   # bound to localhost only
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "cloudops_user", "-pCloudOpsDevPassword123!"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 6
+      start_period: 30s
 
-  # Optional local containerized Flask application
   web:
     build: .
     container_name: cloudops360-web
@@ -32,22 +34,17 @@ services:
       db:
         condition: service_healthy
     environment:
-      FLASK_APP: run.py
       FLASK_ENV: development
-      FLASK_DEBUG: 1
-      SECRET_KEY: local-docker-development-secret-key-360
-      DATABASE_URL: mysql+pymysql://cloudops_user:CloudOpsDevPassword123!@db:3306/cloudops360
+      FLASK_HOST: 0.0.0.0
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      DATABASE_URL: mysql+pymysql://cloudops_user:${MYSQL_PASSWORD}@db:3306/cloudops360?charset=utf8mb4
       UPLOAD_FOLDER: /app/uploads
-      AWS_REGION: us-east-1
+      CLOUDOPS_SKIP_DOTENV: "1"
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     volumes:
-      - .:/app
-      - local_uploads:/app/uploads
-    command: python run.py
+      - uploads:/app/uploads
 
 volumes:
   mysql_data:
-    driver: local
-  local_uploads:
-    driver: local
+  uploads:

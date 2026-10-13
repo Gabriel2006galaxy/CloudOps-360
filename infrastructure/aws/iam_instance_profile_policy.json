@@ -2,36 +2,25 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowSecretsManagerDatabaseSecretAccess",
+      "Sid": "ReadOnlyTheTwoCloudOpsSecrets",
       "Effect": "Allow",
-      "Action": [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-      ],
-      "Resource": "arn:aws:secretsmanager:*:*:secret:cloudops360/*"
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": [
+        "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cloudops360/prod/db-*",
+        "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:cloudops360/prod/app-*"
+      ]
     },
     {
-      "Sid": "AllowEFSClientMountAndWrite",
+      "Sid": "MountAndWriteTheAttachmentFileSystemOnly",
       "Effect": "Allow",
       "Action": [
         "elasticfilesystem:ClientMount",
-        "elasticfilesystem:ClientWrite",
-        "elasticfilesystem:DescribeMountTargets",
-        "elasticfilesystem:DescribeFileSystems"
+        "elasticfilesystem:ClientWrite"
       ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowCloudWatchLogsAndMetrics",
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:DescribeLogStreams",
-        "cloudwatch:PutMetricData"
-      ],
-      "Resource": "*"
+      "Resource": "arn:aws:elasticfilesystem:REGION:ACCOUNT_ID:file-system/FS_ID",
+      "Condition": {
+        "Bool": { "elasticfilesystem:AccessedViaMountTarget": "true" }
+      }
     }
   ]
 }

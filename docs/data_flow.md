@@ -1,159 +1,150 @@
-# CloudOps 360 — Request & Data-Flow Documentation
+# CloudOps 360 — Request & Data Flows
 
-This document diagrams the complete lifecycle of requests, data boundaries, and security validation checks across **CloudOps 360**.
+Every flow below is implemented in the code referenced and covered by the tests named.
 
----
-
-## 1. Authentication & Role-Based Access Control (RBAC) Flow
+## 1. Sign-in, session and authorization
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Client Browser
-    participant Nginx as Nginx (Reverse Proxy)
-    participant Flask as Flask App / Auth Blueprint
-    participant DB as Amazon RDS (MySQL)
-    participant Audit as Audit Service
-
-    User->>Nginx: POST /auth/login (username_or_email, password, CSRF)
-    Nginx->>Flask: Reverse proxy request with X-Forwarded-For
-    Flask->>Flask: Verify CSRF token & sanitize input
-    Flask->>DB: SELECT * FROM users WHERE username = ? OR email = ?
-    DB-->>Flask: Return user record (or null)
-
-    alt Invalid Credentials or Deactivated Account
-        Flask->>Audit: log_audit_event('AUTH_LOGIN_FAILED' / 'DEACTIVATED')
-        Audit->>DB: INSERT INTO audit_logs (...)
-        Flask-->>User: 200 OK (Flash error: Invalid credentials)
-    else Successful Authentication
-        Flask->>Flask: check_password_hash(user.password_hash, input_password)
-        Flask->>DB: UPDATE users SET last_login_at = NOW() WHERE id = user.id
-        Flask->>Audit: log_audit_event('AUTH_LOGIN_SUCCESS')
-        Audit->>DB: INSERT INTO audit_logs (...)
-        Flask->>Flask: Establish signed, HTTPOnly, SameSite session cookie
-        Flask-->>User: 302 Found -> Redirect to /dashboard
-    end
-```
-
----
-
-## 2. Incident Ticket Creation & Amazon EFS Storage Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Emp as Employee
-    participant Flask as Flask App (tickets.create)
-    participant Storage as Storage Service
-    participant EFS as Amazon EFS (/mnt/efs/cloudops360-attachments)
-    participant RDS as Amazon RDS (MySQL)
-    participant Notif as Notification Service
-    participant Audit as Audit Service
-
-    Emp->>Flask: POST /tickets/create (title, description, priority, category_id, file)
-    Flask->>Flask: Verify authenticated user & CSRF token
-    Flask->>Flask: Generate reference ID: INC-2026-XXXXX
-    Flask->>RDS: Query SLA Policy for priority (e.g. Critical -> Resp: 1h, Resol: 4h)
-    RDS-->>Flask: Return SLA thresholds
-    Flask->>Flask: Compute response_due_at and resolution_due_at (UTC)
-
-    opt Attachment File Provided
-        Flask->>Storage: save_file(file_storage)
-        Storage->>Storage: Validate extension against whitelist (png, jpg, log, pdf, etc.)
-        Storage->>Storage: Generate cryptographic UUID: <uuid>.<ext>
-        Storage->>Storage: Path-traversal sanitization check
-        Storage->>EFS: Write binary payload to /mnt/efs/cloudops360-attachments/<uuid>.<ext>
-        EFS-->>Storage: Confirm file write & file size (<= 10MB)
-        Storage-->>Flask: Return (stored_filename, original_filename, file_size, storage_path)
-    end
-
-    Flask->>RDS: BEGIN TRANSACTION
-    Flask->>RDS: INSERT INTO tickets (reference_id, title, priority, status='Open', ...)
-    Flask->>RDS: INSERT INTO ticket_status_history (ticket_id, old_status='None', new_status='Open')
-    opt Attachment File Uploaded
-        Flask->>RDS: INSERT INTO attachments (ticket_id, user_id, filename, original_filename, storage_path)
-    end
-    Flask->>RDS: COMMIT TRANSACTION
-
-    Flask->>Audit: log_audit_event('TICKET_CREATE', reference_id)
-    Audit->>RDS: INSERT INTO audit_logs (...)
-    Flask->>Notif: Create alerts for Active Technicians
-    Notif->>RDS: INSERT INTO notifications (technician_id, title, message, link)
-
-    Flask-->>Emp: 302 Found -> Redirect to /tickets/INC-2026-XXXXX
-```
-
----
-
-## 3. Support Technician Review, Private Internal Notes & Resolution Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Tech as Support Technician
-    actor Emp as Ticket Creator (Employee)
-    participant Flask as Flask App
-    participant RDS as Amazon RDS (MySQL)
-    participant Audit as Audit Service
-    participant Notif as Notification Service
-
-    Tech->>Flask: POST /technician/claim/INC-2026-00001
-    Flask->>Flask: Enforce technician_or_admin_required decorator
-    Flask->>RDS: UPDATE tickets SET technician_id = tech.id, status = 'Assigned'
-    Flask->>RDS: INSERT INTO ticket_status_history (...)
-    Flask->>Notif: Notify Employee that technician has claimed ticket
-    Notif->>RDS: INSERT INTO notifications (creator_id, ...)
-
-    Note over Tech, Flask: Adding Confidential Diagnostic Internal Note
-    Tech->>Flask: POST /tickets/INC-2026-00001/comment (content, is_internal=True)
-    Flask->>Flask: Verify user is Technician or Admin (Employees cannot set is_internal=True)
-    Flask->>RDS: INSERT INTO comments (ticket_id, user_id, content, is_internal=True)
-    Flask->>Audit: log_audit_event('TICKET_COMMENT_ADD', details='Internal: True')
-
-    Note over Emp, Flask: Employee views ticket details
-    Emp->>Flask: GET /tickets/INC-2026-00001
-    Flask->>RDS: SELECT * FROM comments WHERE ticket_id = ? AND is_internal = FALSE
-    RDS-->>Flask: Returns ONLY public comments
-    Flask-->>Emp: Render page (Private internal note is NEVER sent to Employee DOM)
-
-    Note over Tech, Flask: Ticket Resolution
-    Tech->>Flask: POST /tickets/INC-2026-00001/update (status='Resolved', resolution_summary=...)
-    Flask->>Flask: Validate status transition (In Progress -> Resolved is valid)
-    Flask->>RDS: UPDATE tickets SET status='Resolved', resolved_at=NOW(), resolution_summary=?
-    Flask->>RDS: INSERT INTO ticket_status_history (old_status='In Progress', new_status='Resolved')
-    Flask->>Audit: log_audit_event('TICKET_UPDATE', 'Status: Resolved')
-    Flask->>Notif: Notify Employee of resolution
-    Flask-->>Tech: 302 Found -> Redirect to /tickets/INC-2026-00001
-```
-
----
-
-## 4. SLA Monitoring Engine & Overdue Detection Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as User / Dashboard Request
-    participant App as SLA Service (app.services.sla)
-    participant DB as Amazon RDS (MySQL)
-
-    Client->>App: Request dashboard metrics or ticket queue
-    App->>DB: SELECT * FROM tickets WHERE status IN ('Open', 'Assigned', 'In Progress')
-    DB-->>App: Return active open tickets
-
-    loop For each open ticket
-        App->>App: Compare resolution_due_at against datetime.now(timezone.utc)
-        alt resolution_due_at < current_utc_time
-            App->>App: Flag ticket as is_overdue = True
-            App->>App: Format overdue duration e.g. "Overdue by 3h 15m"
-        else resolution_due_at >= current_utc_time
-            App->>App: Flag ticket as is_overdue = False
-            App->>App: Format remaining time e.g. "2h 45m remaining"
+    participant B as Browser
+    participant N as Nginx
+    participant F as Flask (auth)
+    participant DB as MySQL / RDS
+    B->>N: POST /auth/login (CSRF token, username, password)
+    N->>F: proxy (X-Forwarded-For / Proto)
+    F->>F: validate CSRF token (Flask-WTF)
+    F->>DB: count recent failed login_attempts (account + IP)
+    alt locked out
+        F->>DB: audit AUTH_LOGIN_LOCKED
+        F-->>B: 429 "Too many failed sign-in attempts"
+    else
+        F->>DB: SELECT user; check_password_hash()
+        alt wrong password / unknown user
+            F->>DB: insert login_attempt(success=false), audit AUTH_LOGIN_FAILED
+            F-->>B: 401 generic error
+        else deactivated
+            F-->>B: 403
+        else success
+            F->>F: session.clear() (rotate), login_user, login_at/last_seen
+            F->>DB: insert login_attempt(success=true), audit AUTH_LOGIN_SUCCESS
+            F-->>B: 302 → role dashboard (HttpOnly, SameSite=Lax, Secure over HTTPS)
         end
     end
-
-    App->>DB: Query resolved tickets to calculate overall SLA compliance %
-    DB-->>App: Return resolved tickets count within vs breached SLA
-    App->>App: compliance_rate = (resolved_within_sla / total_evaluated) * 100
-    App-->>Client: Render live overdue badges, alerts, and SLA compliance charts
+    Note over F: Every later request: account still active? idle < 30 min? absolute < 8 h?<br/>otherwise logout + audit AUTH_SESSION_EXPIRED / REVOKED
 ```
+
+Code: `app/auth/routes.py`, `app/services/login_security.py`, `app/__init__.py` (`enforce_session_policy`).
+Tests: `tests/test_auth.py`.
+
+## 2. Creating an incident with an attachment
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser (Employee)
+    participant F as Flask (tickets)
+    participant S as Storage (local dir / EFS)
+    participant DB as MySQL / RDS
+    B->>F: POST /tickets/create (multipart, CSRF)
+    F->>F: validate form (title, active category, priority, description)
+    F->>S: stream file in 64 KB chunks → .part file<br/>size limit, extension whitelist, magic bytes, SHA-256
+    alt invalid file
+        S-->>F: UploadValidationError (partial file deleted)
+        F-->>B: 400 form with error, nothing saved
+    else valid
+        S->>S: atomic rename to YYYY/MM/uuid.ext (0640)
+        F->>DB: INSERT ticket → id → reference INC-YYYY-00042<br/>SLA due dates from sla_policies<br/>status history, attachment row, audit, notifications
+        F->>DB: COMMIT (one transaction)
+        F-->>B: 302 /tickets/INC-YYYY-00042
+    end
+```
+
+If the database commit fails after the file was stored, the file is deleted (no orphans).
+Code: `app/tickets/routes.py::create`, `app/services/storage.py`. Tests: `tests/test_tickets.py`, `tests/test_attachments.py`.
+
+## 3. Authorized download
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant F as Flask (attachments)
+    participant DB as MySQL / RDS
+    participant S as Storage (EFS)
+    B->>F: GET /attachments/7/download
+    F->>DB: load attachment + ticket
+    F->>F: can_view_ticket(user, ticket)?<br/>creator / assigned technician / admin
+    alt not allowed
+        F->>DB: audit ATTACHMENT_UNAUTHORIZED_DOWNLOAD
+        F-->>B: 403
+    else allowed
+        F->>S: resolve key inside storage root (no traversal)
+        F->>DB: audit ATTACHMENT_DOWNLOAD
+        F-->>B: 200 Content-Disposition: attachment; X-Content-Type-Options: nosniff;<br/>CSP: sandbox; Cache-Control: private, no-store
+    end
+```
+
+## 4. Ticket lifecycle and notifications
+
+```mermaid
+stateDiagram-v2
+    [*] --> Open: employee reports
+    Open --> Assigned: technician claims / admin assigns
+    Assigned --> InProgress: assigned technician starts work
+    Assigned --> Open: admin returns to queue
+    InProgress --> Resolved: technician (resolution summary ≥ 10 chars required)
+    InProgress --> Assigned: admin pauses
+    Resolved --> Closed: reporter confirms / technician / admin
+    Resolved --> InProgress: reopen (reporter, technician, admin)
+    Closed --> InProgress: reopen within 14 days (reporter) or any time (admin)
+    Open --> Closed: admin cancels
+    Assigned --> Closed: admin cancels
+    Closed --> [*]
+```
+
+Every accepted transition writes `ticket_status_history`, an audit entry
+(`TICKET_STATUS_CHANGE` / `TICKET_REOPEN`) and notifications to the other parties; rejected ones are
+audited as `TICKET_TRANSITION_REJECTED`. Reopening restarts the resolution SLA window. Changing
+priority recalculates SLA targets. Code: `app/services/workflow.py`. Tests: `tests/test_workflow.py`.
+
+## 5. Internal notes
+
+```mermaid
+flowchart LR
+    T["Technician posts comment<br/>is_internal checked"] --> P{"can_post_internal_note?<br/>(staff + assigned / admin)"}
+    P -- no --> PUB["stored as public"]
+    P -- yes --> INT["stored with is_internal = true"]
+    INT --> Q{"viewer is staff?"}
+    Q -- employee --> HIDE["filtered out in SQL:<br/>Comment.is_internal = false"]
+    Q -- technician/admin --> SHOW["shown with 'Internal note' badge"]
+```
+
+Employees never receive internal notes in HTML, notifications or the activity timeline.
+Tests: `tests/test_internal_notes.py`.
+
+## 6. SLA evaluation
+
+* On create: `response_due_at = created + policy.response_hours`, `resolution_due_at = created + policy.resolution_hours`.
+* First public staff reply or move to *In Progress* sets `first_responded_at`.
+* Overdue = active status and `now > resolution_due_at` (SQL filter for lists; property for display).
+* Compliance = resolved on time ÷ (all resolved + active overdue). Shown as "—" when nothing is evaluated yet.
+* Code: `app/services/sla.py`, `app/services/metrics.py`. Tests: `tests/test_sla.py`, `tests/test_dashboards.py`.
+
+## 7. Production secret resolution (EC2)
+
+```mermaid
+sequenceDiagram
+    participant G as Gunicorn worker (create_app)
+    participant IMDS as EC2 instance metadata
+    participant SM as Secrets Manager
+    participant RDS as RDS MySQL
+    G->>IMDS: temporary credentials for CloudOps360-EC2-Role (boto3)
+    G->>SM: GetSecretValue cloudops360/prod/app → SECRET_KEY
+    G->>SM: GetSecretValue cloudops360/prod/db → user/password/host
+    alt any secret missing in production
+        G-->>G: SecretResolutionError → worker refuses to start (fail closed)
+    end
+    G->>RDS: connect with TLS, CA = DB_SSL_CA (certificate verified)
+```
+
+Code: `app/services/secrets.py`. Tests: `tests/test_security.py` (fail-closed cases).

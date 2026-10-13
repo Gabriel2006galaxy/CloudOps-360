@@ -1,61 +1,56 @@
 #!/bin/bash
 # ==============================================================================
-# CloudOps 360: Amazon EFS Mount & Configuration Script
-# Used in Lab 2 & Lab 3 to mount shared attachment filesystem on EC2
+# CloudOps 360 - mount Amazon EFS for shared attachments (Lab 2 / Lab 3)
+#
+#   sudo bash infrastructure/aws/efs_mount_setup.sh <fs-id> [access-point-id]
+#
+# * Mounts with TLS (encryption in transit) via amazon-efs-utils. There is NO
+#   unencrypted NFS fallback: if the TLS mount fails, the script stops.
+# * Adds 'iam' when the instance role is used for EFS authorization (Lab 3, with
+#   the file-system policy in efs_file_system_policy.json).
+# * Persists the mount in /etc/fstab (_netdev) so it survives reboots.
+# * Creates /mnt/efs/cloudops360-attachments owned by the 'cloudops' user, 0750.
+# Run it on EVERY EC2 instance that serves the application.
 # ==============================================================================
-
 set -euo pipefail
+FS_ID="${1:?usage: $0 <fs-id> [access-point-id]}"
+AP_ID="${2:-}"
+MOUNT_POINT=/mnt/efs
+APP_DIR_ON_EFS=$MOUNT_POINT/cloudops360-attachments
+USE_IAM="${USE_IAM:-yes}"
 
-# Check argument
-if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 <EFS_FILESYSTEM_ID> [AWS_REGION]"
-    echo "Example: $0 fs-0123456789abcdef0 us-east-1"
-    exit 1
-fi
+[ "$(id -u)" -eq 0 ] || { echo "Run as root (sudo)." >&2; exit 1; }
+command -v mount.efs >/dev/null || dnf install -y amazon-efs-utils
 
-EFS_ID="$1"
-AWS_REGION="${2:-us-east-1}"
-MOUNT_POINT="/mnt/efs/cloudops360-attachments"
+OPTS="_netdev,tls"
+[ "$USE_IAM" = "yes" ] && OPTS="$OPTS,iam"
+[ -n "$AP_ID" ] && OPTS="$OPTS,accesspoint=$AP_ID"
 
-echo "[EFS Setup] Initializing Amazon EFS mount for: $EFS_ID in region: $AWS_REGION..."
-
-# 1. Install amazon-efs-utils if not installed
-if ! command -v mount.efs &> /dev/null; then
-    echo "[EFS Setup] Installing amazon-efs-utils..."
-    if command -v dnf &> /dev/null; then
-        dnf install -y amazon-efs-utils
-    elif command -v yum &> /dev/null; then
-        yum install -y amazon-efs-utils
-    elif command -v apt-get &> /dev/null; then
-        apt-get update && apt-get install -y nfs-common binutils
-        git clone https://github.com/aws/efs-utils /tmp/efs-utils
-        cd /tmp/efs-utils && ./build-deb.sh && apt-get install -y ./build/amazon-efs-utils*deb
-        rm -rf /tmp/efs-utils
-    fi
-fi
-
-# 2. Create local mount directory
 mkdir -p "$MOUNT_POINT"
-
-# 3. Mount EFS with TLS encryption in transit and IAM authentication
-echo "[EFS Setup] Mounting $EFS_ID to $MOUNT_POINT with TLS encryption..."
-mount -t efs -o tls,iam "$EFS_ID":/ "$MOUNT_POINT" || {
-    echo "[EFS Setup] Falling back to standard DNS mount..."
-    mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport \
-        "${EFS_ID}.efs.${AWS_REGION}.amazonaws.com:/" "$MOUNT_POINT"
-}
-
-# 4. Configure persistent mount in /etc/fstab
-if ! grep -q "$EFS_ID" /etc/fstab; then
-    echo "[EFS Setup] Adding mount to /etc/fstab for persistence across reboots..."
-    echo "$EFS_ID:/ $MOUNT_POINT efs _netdev,tls,iam 0 0" >> /etc/fstab
+if ! mountpoint -q "$MOUNT_POINT"; then
+    echo "[efs] Mounting $FS_ID at $MOUNT_POINT with options: $OPTS"
+    mount -t efs -o "$OPTS" "$FS_ID":/ "$MOUNT_POINT"
 fi
 
-# 5. Set correct POSIX permissions for application user
-echo "[EFS Setup] Setting ownership and permissions on $MOUNT_POINT..."
-chown -R ec2-user:ec2-user "$MOUNT_POINT" || chown -R www-data:www-data "$MOUNT_POINT"
-chmod 775 "$MOUNT_POINT"
+FSTAB_LINE="$FS_ID:/ $MOUNT_POINT efs $OPTS 0 0"
+if ! grep -q "^$FS_ID:/ " /etc/fstab; then
+    echo "$FSTAB_LINE" >> /etc/fstab
+    echo "[efs] Added to /etc/fstab: $FSTAB_LINE"
+fi
 
-# 6. Verify mount status
-df -h "$MOUNT_POINT"
-echo "[EFS Setup] EFS successfully mounted and verified at $MOUNT_POINT."
+install -d -m 0750 -o cloudops -g cloudops "$APP_DIR_ON_EFS"
+
+echo "[efs] Verification:"
+mountpoint "$MOUNT_POINT"
+findmnt -T "$MOUNT_POINT" -o TARGET,SOURCE,FSTYPE,OPTIONS
+# efs-utils tunnels TLS through stunnel on localhost; its presence proves encryption in transit
+{ pgrep -a stunnel || pgrep -af efs-proxy; } >/dev/null && echo "[efs] TLS tunnel (stunnel) is running: encryption in transit active" \
+    || echo "[efs] WARNING: no stunnel process found - TLS may not be active"
+sudo -u cloudops bash -c "echo efs-write-test > $APP_DIR_ON_EFS/.write-test && rm $APP_DIR_ON_EFS/.write-test" \
+    && echo "[efs] cloudops user can write to $APP_DIR_ON_EFS"
+
+echo "[efs] Now set in /etc/cloudops360/cloudops360.env:"
+echo "  STORAGE_BACKEND=efs"
+echo "  EFS_MOUNT_POINT=$MOUNT_POINT"
+echo "  UPLOAD_FOLDER=$APP_DIR_ON_EFS"
+echo "then: sudo systemctl restart cloudops360"

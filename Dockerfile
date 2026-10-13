@@ -1,31 +1,19 @@
-# CloudOps 360: Secure IT Service & Incident Management Platform
+# CloudOps 360 - container image for local development (docker compose).
+# Production on EC2 runs under systemd + Gunicorn (see infrastructure/aws).
 FROM python:3.12-slim
 
-# Set working directory
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    default-libmysqlclient-dev \
-    pkg-config \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy dependency specifications
 COPY requirements.txt .
-
-# Install Python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source code
 COPY . .
+RUN useradd --system --home /app cloudops \
+    && mkdir -p /app/uploads \
+    && chown -R cloudops:cloudops /app/uploads
+USER cloudops
 
-# Create uploads directory
-RUN mkdir -p uploads && chmod 777 uploads
-
-# Expose default Flask port
 EXPOSE 5000
-
-# Run entry point
-CMD ["python", "run.py"]
+# Apply migrations, then start the development server
+CMD ["sh", "-c", "flask --app wsgi db upgrade && python run.py"]

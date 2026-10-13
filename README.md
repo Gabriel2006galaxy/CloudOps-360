@@ -1,328 +1,226 @@
-# CloudOps 360: Secure IT Service & Incident Management Platform
+# CloudOps 360 — Secure IT Service & Incident Management Platform
 
-> **Intelligent IT Operations. Secure by Design.**  
-> *A production-ready, full-stack enterprise IT service and cloud incident operations platform engineered for the AWS Cloud Computing Lab.*
+> **Intelligent IT Operations. Secure by Design.**
+> A full-stack IT service-management application for the AWS Cloud Computing Lab:
+> Flask + MySQL/Amazon RDS + Amazon EFS on Amazon EC2, with role-based dashboards,
+> a real ticket workflow, SLA tracking and demonstrable security controls.
 
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.0.3-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3.3-7952B3?logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
-[![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20RDS%20%7C%20EFS%20%7C%20Secrets%20Manager-232F3E?logo=amazon-aws&logoColor=white)](https://aws.amazon.com/)
-[![Tests](https://img.shields.io/badge/pytest-20%20passed%20(100%25)-brightgreen?logo=pytest&logoColor=white)](tests/)
-[![Security](https://img.shields.io/badge/Security-RBAC%20%7C%20CSRF%20%7C%20EFS%20Storage%20Isolation-success)](docs/security_checklist.md)
+| | |
+| :--- | :--- |
+| **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
+| **Tests** | 123 pytest tests — passing on SQLite **and** MySQL 8.0 |
+| **Status** | Application complete and verified locally. AWS deployment is scripted and documented but **not yet verified on AWS** — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
----
-
-## Table of Contents
-1. [Overview & Highlights](#1-overview--highlights)
-2. [Fixed Technology Stack](#2-fixed-technology-stack)
-3. [Project Directory Architecture](#3-project-directory-architecture)
-4. [Role-Based Access Control (RBAC)](#4-role-based-access-control-rbac)
-5. [Local Quickstart & Setup](#5-local-quickstart--setup)
-6. [Database Migrations & Seeding](#6-database-migrations--seeding)
-7. [Automated Test Suite](#7-automated-test-suite)
-8. [AWS Cloud Deployment Guide (EC2 + RDS + EFS)](#8-aws-cloud-deployment-guide-ec2--rds--efs)
-9. [AWS Security Controls & Governance](#9-aws-security-controls--governance)
-10. [Three-Lab Demonstration Plan](#10-three-lab-demonstration-plan)
+Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
+[AWS deployment guide](docs/aws_deployment.md) · [Architecture](docs/architecture.md) ·
+[Database ER](docs/database_er.md) · [Data flows](docs/data_flow.md) ·
+[Security checklist](docs/security_checklist.md) · [Lab 1–3 guides](docs/lab_guides.md)
 
 ---
 
-## 1. Overview & Highlights
+## 1. Features
 
-**CloudOps 360** is an enterprise-grade IT Service Management (ITSM) and Cloud Incident Resolution platform modeled after modern operational command dashboards (PagerDuty, ServiceNow, Datadog). 
+**Roles (enforced on the server for every request)**
 
-### Key Capabilities
-- **Strict Role-Based Access Control (RBAC)**: Enforces three distinct enterprise roles (**Employee**, **Support Technician**, **Administrator**) with server-side authorization decorators and query data isolation.
-- **Incident Lifecycle Management**: End-to-end incident state machine (`Open` &rarr; `Assigned` &rarr; `In Progress` &rarr; `Resolved` &rarr; `Closed`) with transition auditing and authorized reopening.
-- **Amazon EFS Shared File Storage**: Abstraction layer allowing multi-instance EC2 deployments to store, share, and securely download diagnostic logs and screenshots with path-traversal prevention.
-- **Amazon RDS for MySQL Persistence**: Fully relational data store managing tickets, categories, user profiles, status histories, notifications, and immutable audit logs.
-- **Automated SLA Engine**: Computes priority-based response and resolution deadlines (UTC), dynamically flagging overdue incidents and calculating real-time compliance percentages.
-- **Confidential Internal Technician Notes**: Allows support engineers to document root-cause hypotheses and diagnostic commands privately, completely hidden from employee views.
-- **AWS Secrets Manager Integration**: Supports dynamic retrieval of production RDS credentials via EC2 IAM instance roles, eliminating hardcoded passwords.
-- **Interactive Operational Dashboards**: Role-specific analytics, Chart.js telemetry (priority doughnuts, status pipelines, category distributions), notifications center, global search (`Ctrl+K`), and Dark/Light mode.
-
----
-
-## 2. Fixed Technology Stack
-
-| Layer | Component | Specification |
+| Employee | Support Technician | Administrator |
 | :--- | :--- | :--- |
-| **Frontend** | HTML5, CSS3, JavaScript ES6+ | Custom enterprise design system (Navy, Cyan, White palette), Vanilla JS interactions. |
-| **Styling** | Bootstrap 5.3.3 & Icons | Responsive grid, accessible modals, collapse drawers, alert dismissals, toast notifications. |
-| **Visualizations** | Chart.js 4.4.3 | Responsive doughnut and bar charts for incident volume, priority distributions, and SLA metrics. |
-| **Backend** | Python Flask 3.0.3 | Application factory pattern, Flask Blueprints (`auth`, `tickets`, `dashboard`, `admin`, `technician`, `attachments`, `main`). |
-| **Templating** | Jinja2 | Modular inheritance (`base.html`), custom datetime formatters, context processors. |
-| **Database** | MySQL 8.0 & Amazon RDS | Flask-SQLAlchemy 3.1.1 ORM, Flask-Migrate 4.0.7 (Alembic) schema version control. |
-| **Authentication** | Flask-Login & Flask-WTF | Werkzeug password hashing (Scrypt/PBKDF2), CSRF protection tokens, session cookie hardening. |
-| **AWS Hosting** | Amazon EC2 Linux | Amazon Linux 2023 / Ubuntu 22.04 LTS, Gunicorn WSGI application server, Nginx reverse proxy. |
-| **Shared Storage**| Amazon EFS | Network File System (NFSv4.1) POSIX mounts with TLS in-transit encryption. |
-| **AWS Security** | IAM & Secrets Manager | EC2 Instance Profiles, least-privilege IAM policies, AWS KMS at-rest encryption. |
-| **Testing** | pytest 8.2.2 | 20 comprehensive unit and integration tests covering auth, RBAC, uploads, SLA, and privacy. |
+| Report incidents with screenshots/logs | Work tickets assigned to them | Everything technicians can do, on every ticket |
+| See only their own tickets, public comments and status history | Claim tickets from the unassigned queue | Manage users, roles and account status |
+| Comment, upload files, confirm or reopen a resolution | Change status/priority, public replies, **private internal notes** | Assign / reassign tickets, manage categories |
+| Personal dashboard and notifications | Workload, critical and overdue views, resolution trend | Configure SLA targets, analytics, audit trail (CSV export) |
+
+**Tickets** — reference `INC-YYYY-00001`, title, description, category, priority (Low → Critical),
+creator, assignee, affected system, department, attachments, resolution summary, timestamps.
+Workflow **Open → Assigned → In Progress → Resolved → Closed** with server-validated transitions,
+required resolution summary and authorized reopening. Search, filters (status, priority, category,
+assignee, created-date range, overdue), column sorting, pagination and a full activity history.
+
+**SLA** — configurable first-response and resolution targets per priority, live countdown,
+overdue flags, resolution duration, compliance rates. All timestamps UTC.
+
+**Notifications** — database-backed notifications for assignments, comments, status and priority
+changes, with unread badge (polled), notification centre and mark-as-read.
+
+**Security** — hashed passwords, login rate limiting, session idle/absolute expiry, CSRF on every
+form, RBAC + data isolation, internal-note privacy, validated uploads (type, content, size),
+authorized downloads, security headers, audit log, fail-closed production configuration,
+Secrets Manager integration. Details: [security checklist](docs/security_checklist.md).
+
+**UI** — navy/cyan enterprise theme, light/dark mode, collapsible sidebar, breadcrumbs, global
+search (Ctrl+K), notification dropdown, toasts, confirmation dialogs, chart skeletons, empty
+states, responsive down to phone width, skip link and keyboard-visible focus.
 
 ---
 
-## 3. Project Directory Architecture
+## 2. Project structure
 
 ```text
 CloudOps-360/
 ├── app/
-│   ├── __init__.py               # Application factory, Jinja filters, context processors, CLI commands
-│   ├── extensions.py             # SQLAlchemy, Flask-Migrate, LoginManager, CSRFProtect
-│   ├── models.py                 # Relational schema (Users, Tickets, Categories, Comments, Attachments, etc.)
-│   ├── admin/                    # Blueprint for user directory, category catalog, SLA targets, audit logs
-│   ├── attachments/              # Blueprint for authorized EFS file downloads and deletion
-│   ├── auth/                     # Blueprint for login, logout, registration, and user profiles
-│   ├── dashboard/                # Blueprint for Employee, Technician, and Executive Admin dashboards
-│   ├── main/                     # Blueprint for public landing page, health check, and notifications API
-│   ├── technician/               # Blueprint for technician queue, workload, and ticket claiming
-│   ├── tickets/                  # Blueprint for incident CRUD, filtering, comments, and attachments
+│   ├── __init__.py            # app factory, security hooks, error handlers, CLI commands
+│   ├── extensions.py          # db, migrate, login_manager, csrf
+│   ├── models.py              # 10 tables (9 required + login_attempts)
+│   ├── auth/ tickets/ technician/ admin/ dashboard/ attachments/ main/   # blueprints
 │   ├── services/
-│   │   ├── audit.py              # Enterprise audit logging service with IP & User-Agent capture
-│   │   ├── notifications.py      # Database-backed in-app notification dispatcher
-│   │   ├── secrets.py            # AWS Secrets Manager dynamic credential loader
-│   │   ├── sla.py                # SLA target calculation, overdue detection, compliance analytics
-│   │   └── storage.py            # EFS / Local filesystem storage abstraction layer
-│   ├── static/
-│   │   ├── css/main.css          # Premium Navy/Cyan design tokens, theme styles, card animations
-│   │   └── js/
-│   │       ├── charts.js         # Chart.js renderers for priority, status, and category charts
-│   │       └── main.js           # Dark/Light theme, sidebar toggle, notification polling, shortcuts
-│   └── templates/                # Jinja2 templates (landing, auth, tickets, dashboards, admin, errors)
-├── docs/
-│   ├── architecture.md           # AWS Architecture diagram (Mermaid) and component specs
-│   ├── database_er.md            # Complete Database ER diagram (Mermaid) and table dictionaries
-│   ├── data_flow.md              # Request & data-flow sequence diagrams (Mermaid)
-│   ├── security_checklist.md     # Security verification matrix and pytest execution evidence
-│   └── lab_guides.md             # Separate step-by-step Lab 1, Lab 2, and Lab 3 demonstration guides
-├── infrastructure/aws/
-│   ├── cloudops360.service       # Systemd unit file for Gunicorn production service
-│   ├── ec2_userdata.sh           # Automated EC2 Linux instance bootstrap script
-│   ├── efs_mount_setup.sh        # Amazon EFS mounting script with TLS and fstab persistence
-│   ├── iam_instance_profile_policy.json # Least-privilege IAM policy for EC2 instance profile
-│   ├── nginx.conf                # Nginx reverse proxy, security headers, and static caching
-│   └── rds_mysql_setup.sql       # Amazon RDS MySQL initial database and user provisioning script
-├── migrations/                   # Alembic schema versioning scripts (Flask-Migrate)
-├── scripts/
-│   └── seed_data.py              # Development and demonstration database seeder
-├── tests/
-│   ├── conftest.py               # Testing fixtures (app, client, runner, demo users)
-│   ├── test_attachments.py       # File extension whitelist, upload limits, authorized downloads
-│   ├── test_auth.py              # Login, logout, deactivated accounts, password hash validation
-│   ├── test_rbac.py              # Employee isolation, admin route protection, privilege escalation prevention
-│   ├── test_sla.py               # SLA target calculation, overdue detection
-│   ├── test_technician_notes.py  # Internal technician note privacy verification
-│   └── test_tickets.py           # Ticket CRUD, lifecycle state transitions, authorized reopening
-├── .env.example                  # Environment variable template with placeholders only
-├── .gitignore                    # Excludes .env, virtual environments, database binaries, uploads
-├── config.py                     # Configuration classes (Development, Testing, Production)
-├── docker-compose.yml            # Local MySQL 8.0 container service and optional app container
-├── Dockerfile                    # Container build file for Python 3.12 application
-├── pytest.ini                    # Pytest configuration settings
-├── requirements.txt              # Production and development dependencies
-├── run.py                        # Local development entry point
-└── wsgi.py                       # Production WSGI entry point for Gunicorn
+│   │   ├── permissions.py     # who may see/do what (single source of truth)
+│   │   ├── workflow.py        # status transitions, assignment, priority
+│   │   ├── storage.py         # local disk / Amazon EFS storage abstraction
+│   │   ├── secrets.py         # Secrets Manager / env resolution (fail closed)
+│   │   ├── sla.py metrics.py  # SLA engine and dashboard metrics
+│   │   ├── audit.py notifications.py login_security.py
+│   ├── templates/  static/css/  static/js/
+├── migrations/                # Alembic migrations (flask db upgrade)
+├── tests/                     # pytest suite
+├── scripts/                   # seed data, local MySQL setup, MySQL test runner
+├── infrastructure/aws/        # EC2 bootstrap, systemd, Nginx, EFS, TLS, IAM/EFS policies, RDS SQL, verification
+├── docs/                      # deployment guide, diagrams, checklists
+├── config.py  run.py  wsgi.py  requirements.txt  .env.example  docker-compose.yml  Dockerfile
 ```
 
 ---
 
-## 4. Role-Based Access Control (RBAC)
+## 3. Local setup (Windows, verified)
 
-CloudOps 360 enforces strict server-side authorization across three user roles:
+Prerequisites: Python 3.11 or 3.12, Git, MySQL 8.0 Server running locally (or Docker, see §4).
 
-| Role | Operational Scope & Permissions | Restricted Operations |
-| :--- | :--- | :--- |
-| **Employee** | Create incidents, upload diagnostic attachments, track own tickets, view status transitions, post public comments. | **Cannot** view tickets created by other employees, **cannot** view technician internal notes, **cannot** access `/admin/*` routes. |
-| **Support Technician** | Claim unassigned tickets, update incident status/priority, record resolution summaries, post public updates **and** private internal notes, manage workload queue. | **Cannot** manage system users, **cannot** modify global SLA policies, **cannot** access administrative user management. |
-| **Administrator** | Full system visibility: manage users & roles, configure incident categories, customize SLA targets, inspect compliance audit logs, review system analytics. | Governed by audit logging: every role toggle, status update, and policy alteration is recorded. |
-
----
-
-## 5. Local Quickstart & Setup
-
-### Prerequisites
-- Python 3.11 or 3.12
-- Git
-- Optional: Docker & Docker Compose (for local MySQL 8.0)
-
-### Option A: Immediate Quickstart (Local SQLite Fallback)
-The application automatically falls back to a local SQLite database (`cloudops360.db`) if no MySQL connection is configured:
-
-```bash
-# 1. Clone repository
+```powershell
 git clone https://github.com/Gabriel2006galaxy/CloudOps-360.git
 cd CloudOps-360
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
 
-# 2. Create and activate Python virtual environment
-python -m venv .venv
+# Creates .env (random SECRET_KEY + DB password) and the MySQL databases/user.
+# You are prompted for your MySQL *root* password; it is not stored.
+powershell -ExecutionPolicy Bypass -File scripts\setup_local_mysql.ps1
 
-# On Windows (PowerShell):
-.venv\Scripts\Activate.ps1
-# On Linux / macOS:
-source .venv/bin/activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Copy environment configuration
-cp .env.example .env
-
-# 5. Apply migrations and seed demonstration accounts
-flask db upgrade
-flask seed-db --no-input
-
-# 6. Launch development server
-python run.py
+.venv\Scripts\flask db upgrade          # create tables via migrations
+.venv\Scripts\flask seed-db             # DEVELOPMENT demo users + sample incidents
+.venv\Scripts\python run.py             # http://127.0.0.1:5000
 ```
-Open **`http://127.0.0.1:5000`** in your web browser.
 
----
+Linux/macOS: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`,
+copy `.env.example` to `.env`, create the database and user (SQL in `scripts/setup_local_mysql.ps1`
+or `infrastructure/aws/rds_mysql_setup.sql`), then `flask db upgrade && flask seed-db && python run.py`.
 
-### Option B: Local MySQL Setup via Docker Compose
-To run against a local MySQL 8.0 instance matching Amazon RDS:
+**Development demo accounts** (created only by `flask seed-db`; the command refuses to run in production):
+
+| Role | Username | Password |
+| :--- | :--- | :--- |
+| Administrator | `admin` | `AdminPass123!` |
+| Technician | `tech_sarah`, `tech_marcus` | `TechPass123!` |
+| Employee | `emp_jordan`, `emp_elena` | `EmpPass123!` |
+
+If `DATABASE_URL` is empty in development, the app falls back to a local SQLite file with a
+warning (`ALLOW_SQLITE_FALLBACK`). Production never falls back.
+
+## 4. Local MySQL with Docker Compose (alternative)
+
+Add `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` and `SECRET_KEY` to `.env`, set
+`DATABASE_URL=mysql+pymysql://cloudops_user:<MYSQL_PASSWORD>@localhost:3306/cloudops360?charset=utf8mb4`, then:
 
 ```bash
-# 1. Start MySQL 8.0 container
-docker compose up -d db
+docker compose up -d db                 # MySQL 8.0 on 127.0.0.1:3306
+flask db upgrade && flask seed-db && python run.py
+# or run everything in containers:
+docker compose up --build               # app on http://127.0.0.1:5000
+```
+*Docker was not available on the development machine, so the compose file has not been run.*
 
-# 2. Update .env to connect to local MySQL
-# DATABASE_URL=mysql+pymysql://cloudops_user:CloudOpsDevPassword123!@localhost:3306/cloudops360
+## 5. Configuration
 
-# 3. Apply schema migrations & seed data
-flask db upgrade
-flask seed-db --no-input
+All settings are environment variables (see `.env.example`; production template
+`infrastructure/aws/cloudops360.env.example`). Key ones:
 
-# 4. Run application
-python run.py
+| Variable | Purpose |
+| :--- | :--- |
+| `FLASK_ENV` | `development` / `production` |
+| `SECRET_KEY` or `APP_SECRET_NAME` | Flask session key (env or Secrets Manager) |
+| `DATABASE_URL` or `DB_SECRET_NAME` | MySQL/RDS connection (env or Secrets Manager); `DB_SSL_CA` enables verified TLS |
+| `STORAGE_BACKEND`, `UPLOAD_FOLDER`, `EFS_MOUNT_POINT` | `local` directory or `efs` mount |
+| `MAX_UPLOAD_BYTES` | per-file limit (default 10 MB) |
+| `SESSION_COOKIE_SECURE`, `SESSION_IDLE_TIMEOUT_MINUTES`, `SESSION_ABSOLUTE_TIMEOUT_HOURS` | session security |
+| `LOGIN_MAX_FAILED_PER_ACCOUNT`, `LOGIN_MAX_FAILED_PER_IP`, `LOGIN_LOCKOUT_WINDOW_MINUTES` | brute-force protection |
+| `TRUSTED_PROXY_COUNT` | number of reverse proxies (Nginx = 1) |
+| `ALLOW_SELF_REGISTRATION`, `SHOW_DEMO_ACCOUNTS` | feature flags (both forced off/secure in production defaults) |
+
+Never commit `.env`. It is gitignored, and so are `*.db`, `uploads/` and `instance/`.
+
+## 6. Database commands
+
+```powershell
+.venv\Scripts\flask db upgrade                 # apply migrations
+.venv\Scripts\flask db downgrade               # revert the last migration
+.venv\Scripts\flask db migrate -m "message"    # after changing models (review the generated file)
+.venv\Scripts\flask db check                   # models and migrations in sync?
+.venv\Scripts\flask seed-db                    # dev demo data (refused in production)
+.venv\Scripts\flask seed-reference-data        # categories + SLA policies only (safe in production)
+.venv\Scripts\flask create-admin               # interactive admin creation (production)
+.venv\Scripts\flask storage-check              # verify every attachment file + SHA-256
+.venv\Scripts\flask purge-login-attempts --days 30
 ```
 
----
+## 7. Tests
 
-## 6. Database Migrations & Seeding
-
-CloudOps 360 uses **Flask-Migrate** (Alembic) for structured database version control and an explicit seeding command:
-
-```bash
-# Apply pending migrations to database
-flask db upgrade
-
-# Generate a new migration after schema changes
-flask db migrate -m "Description of changes"
-
-# Seed reference categories, SLA policies, and realistic demo tickets
-flask seed-db
+```powershell
+.venv\Scripts\python -m pytest -q                                            # in-memory SQLite (~50 s)
+powershell -ExecutionPolicy Bypass -File scripts\run_tests_mysql.ps1 -q      # same suite on MySQL cloudops360_test (~2 min)
 ```
 
-### Pre-Configured Demonstration Accounts
+| File | Covers |
+| :--- | :--- |
+| `test_auth.py` | login/logout, hashing, lockout, IP throttling, deactivation, session expiry, open redirects, registration, password change |
+| `test_rbac.py` | admin/technician page protection, ticket isolation, assignment rules, privilege-escalation attempts |
+| `test_tickets.py` | creation (reference, SLA, history, notifications, audit), validation, filters/search/sort/pagination, persistence across restart |
+| `test_workflow.py` | full lifecycle, invalid transitions, resolution summary, reopen window, assignment, priority/SLA recalculation, notifications |
+| `test_internal_notes.py` | internal notes never reach employees; employees cannot create them |
+| `test_attachments.py` | whitelist, magic bytes, size, traversal, EFS mount guard, authorized/unauthorized downloads, headers, delete, `storage-check` |
+| `test_sla.py` | due dates, overdue, compliance metrics, admin SLA configuration |
+| `test_dashboards.py` | dashboard numbers equal database counts, trends, empty states |
+| `test_security.py` | CSRF, headers, cookies, secret exposure, fail-closed production config, SQL-injection inputs |
+| `test_pages.py` | crawls every reachable page for each role (no server errors, no dead links) |
 
-| Role | Username | Password | Department | Access Level |
-| :--- | :--- | :--- | :--- | :--- |
-| **Administrator** | `admin` | `AdminPass123!` | Cloud Architecture & Security | System-wide analytics, user management, SLA policies, audit trail |
-| **Technician** | `tech_sarah` | `TechPass123!` | Tier 2 Infrastructure Support | Workload queue, ticket claim, status updates, internal notes |
-| **Technician** | `tech_marcus` | `TechPass123!` | Security & Compliance Ops | Workload queue, incident remediation, internal notes |
-| **Employee** | `emp_jordan` | `EmpPass123!` | Finance & Billing Engineering | Personal service dashboard, ticket creation, attachment upload |
-| **Employee** | `emp_elena` | `EmpPass123!` | Analytics & Data Pipeline | Personal service dashboard, ticket creation, attachment upload |
+The suite ignores your local `.env` (`CLOUDOPS_SKIP_DOTENV=1`) so results do not depend on local settings.
 
-*Note: Default accounts and passwords are generated exclusively through explicit development seed commands and are never automatically created in production.*
+## 8. AWS deployment (summary)
 
----
+Full guide: **[docs/aws_deployment.md](docs/aws_deployment.md)**.
 
-## 7. Automated Test Suite
+| Lab | What you do | Scripts |
+| :--- | :--- | :--- |
+| 1 | EC2 (Amazon Linux 2023) + Nginx + Gunicorn + MySQL-compatible DB on the instance | `ec2_bootstrap.sh`, `lab1_mariadb_on_ec2.sh` |
+| 2 | Amazon RDS for MySQL (private) + Amazon EFS (TLS mount) | `rds_mysql_setup.sql`, `efs_mount_setup.sh` |
+| 3 | IAM role, Secrets Manager, HTTPS, encryption, private networking, verification | `iam_*.json`, `efs_file_system_policy.json`, `tls_self_signed.sh`, `nginx_https.conf`, `verify_deployment.sh` |
 
-CloudOps 360 includes 20 comprehensive automated unit and integration tests using `pytest`:
+Updates: `sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main`.
 
-```bash
-# Run complete test suite
-pytest -v
+## 9. Troubleshooting (local)
 
-# Run specific test modules
-pytest tests/test_rbac.py -v
-pytest tests/test_technician_notes.py -v
-pytest tests/test_attachments.py -v
-```
+| Problem | Fix |
+| :--- | :--- |
+| `Access denied for user 'cloudops_user'` | Re-run `scripts\setup_local_mysql.ps1` (it re-applies the password from `.env`) |
+| `Can't connect to MySQL server on 'localhost'` | Start the service: `Start-Service MySQL80` (admin PowerShell) |
+| App uses SQLite unexpectedly | `DATABASE_URL` missing in `.env`; the log prints a warning |
+| "Too many failed sign-in attempts" | Wait 15 minutes, or `flask purge-login-attempts --days 0` in development |
+| Session ends after 30 minutes | Intended idle timeout (`SESSION_IDLE_TIMEOUT_MINUTES`) |
+| Upload rejected "content does not match" | The file's bytes do not match its extension (e.g. renamed `.exe`) |
+| `flask` command not found | Use `.venv\Scripts\flask` or activate the venv |
 
-### Verified Test Assertions
-1. **Authentication**: Successful login, rejected invalid passwords, blocked deactivated accounts, secure logout.
-2. **Password Security**: Password hashes are stored with cryptographic salts; plaintext passwords are never stored.
-3. **RBAC Isolation**: Employees receive HTTP 403 Forbidden when attempting to view other users' tickets or administrative routes.
-4. **Privilege Escalation**: Public registration and user profile updates cannot elevate role to Administrator.
-5. **Technician Privacy**: Internal technician notes (`is_internal=True`) are completely filtered from Employee views.
-6. **Attachment Security**: Whitelisted file extensions validated; directory traversal attacks rejected; unauthorized downloads return HTTP 403.
-7. **SLA Engine**: Accurate calculation of due dates and real-time detection of overdue incidents.
-8. **Ticket State Machine**: Valid status transitions enforced; authorized reopening verified.
+## 10. Design decisions
 
----
+* **No ticket deletion** — incidents are cancelled by closing them (audit trail preserved).
+* **Technician visibility** — technicians see their own assignments plus the unassigned queue, not
+  colleagues' tickets; administrators assign and reassign.
+* **Reference numbers** derive from the primary key (`INC-YYYY-<id>`), so concurrent Gunicorn workers cannot collide.
+* **Rate limiting in the database** (not process memory) so it holds across several EC2 instances.
+* **Attachments**: bytes on EFS under generated names, metadata + SHA-256 in RDS; downloads always forced as attachments.
 
-## 8. AWS Cloud Deployment Guide (EC2 + RDS + EFS)
+## 11. What still needs your action (AWS)
 
-### Phase 1: Amazon EC2 Linux Instance Provisioning
-1. Launch an Amazon EC2 Linux instance (`t3.micro` or `t3.small`) using Amazon Linux 2023.
-2. In the **Advanced Details -> User Data** field, paste the contents of [`infrastructure/aws/ec2_userdata.sh`](infrastructure/aws/ec2_userdata.sh).
-3. Associate Security Group `sg-ec2` (Inbound HTTP 80 from ALB/public, Inbound SSH 22 from admin IP).
-4. Attach IAM Instance Profile `CloudOps360-EC2-Role`.
+These require your AWS account and were **not** performed or verified from this repository:
 
-### Phase 2: Amazon RDS for MySQL Configuration
-1. Create a MySQL 8.0 RDS instance in private subnets.
-2. Set Security Group `sg-rds` to allow Inbound port 3306 **only from `sg-ec2`**.
-3. Run the provisioning script to create database and application user:
-   ```bash
-   mysql -h <RDS-ENDPOINT> -u admin -p < infrastructure/aws/rds_mysql_setup.sql
-   ```
-4. Set the `DATABASE_URL` in `.env`:
-   ```ini
-   DATABASE_URL=mysql+pymysql://cloudops_user:<Password>@<RDS-ENDPOINT>:3306/cloudops360
-   ```
-
-### Phase 3: Amazon EFS Shared Storage Mounting
-1. Create an Amazon EFS file system with KMS encryption enabled.
-2. Create mount targets in the private subnets of your VPC with Security Group `sg-efs` (Inbound port 2049 from `sg-ec2`).
-3. Run the EFS mounting helper on your EC2 instance:
-   ```bash
-   sudo bash infrastructure/aws/efs_mount_setup.sh <EFS-FILESYSTEM-ID> us-east-1
-   ```
-4. Configure `.env`:
-   ```ini
-   UPLOAD_FOLDER=/mnt/efs/cloudops360-attachments
-   ```
-
-### Phase 4: Nginx & Gunicorn Production Startup
-```bash
-# Enable and start Gunicorn service
-sudo cp infrastructure/aws/cloudops360.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now cloudops360
-
-# Enable and start Nginx reverse proxy
-sudo cp infrastructure/aws/nginx.conf /etc/nginx/conf.d/cloudops360.conf
-sudo systemctl enable --now nginx
-
-# Verify application health endpoint
-curl http://localhost/health
-```
-
----
-
-## 9. AWS Security Controls & Governance
-
-- **IAM Instance Profile**: Uses temporary security tokens automatically rotated by AWS STS. Zero permanent access keys (`AKIA...`) are stored in code or configurations.
-- **AWS Secrets Manager**: Dynamically loads RDS database credentials when `AWS_SECRETS_NAME` is defined in `.env`.
-- **Private Subnet Isolation**: RDS and EFS have no public IP addresses and reject all internet traffic.
-- **Application Hardening**:
-  - CSRF tokens validated on all state-changing HTTP requests.
-  - Path-traversal sanitization on file uploads (`uuid.uuid4().hex` stored names).
-  - SQLAlchemy parameterized query binding to prevent SQL injection.
-  - HTTPOnly, SameSite, and Secure session cookie flags.
-- **Audit Forensics**: Comprehensive audit records in the `audit_logs` table capture timestamp, actor, action code, client IP (from `X-Forwarded-For`), and user-agent string.
-
-For full verification evidence, see the [Security Checklist](docs/security_checklist.md).
-
----
-
-## 10. Three-Lab Demonstration Plan
-
-For AWS Cloud Computing Lab evaluations, CloudOps 360 is organized into three progressive milestones:
-
-- **[LAB 1: Dynamic Website](docs/lab_guides.md#lab-1-dynamic-website-deployment)**: Responsive UI, Flask Blueprints, authentication, local/SQLite database, ticket lifecycle, and EC2 Linux deployment.
-- **[LAB 2: RDS + EFS Integration](docs/lab_guides.md#lab-2-amazon-rds--amazon-efs-integration)**: Amazon RDS MySQL migration, Amazon EFS network storage mounting, secure diagnostic file uploads, and multi-instance shared consistency.
-- **[LAB 3: Security & Governance](docs/lab_guides.md#lab-3-aws-security-rbac--end-to-end-governance)**: IAM instance roles, AWS Secrets Manager integration, RBAC isolation, internal technician note privacy, SLA countdown tracking, and audit forensics.
-
-See [docs/lab_guides.md](docs/lab_guides.md) for step-by-step presentation scripts and demonstration checklists.
+1. Create the VPC/security groups, EC2 instance, RDS instance and EFS file system (console steps in the guide).
+2. Run the bootstrap/mount scripts on EC2; create the first admin with `flask create-admin`.
+3. Create the IAM role/instance profile and the two Secrets Manager secrets; switch the env file to `DB_SECRET_NAME`/`APP_SECRET_NAME`.
+4. Enable HTTPS (certbot with a domain, or `tls_self_signed.sh`) and set `SESSION_COOKIE_SECURE=true`.
+5. Run `verify_deployment.sh` and the CloudShell commands, and keep the output as evidence.
+6. Stop/delete resources when finished (cost section of the guide).

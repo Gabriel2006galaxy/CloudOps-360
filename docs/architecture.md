@@ -1,131 +1,89 @@
-# CloudOps 360 — AWS Cloud Architecture
+# CloudOps 360 — AWS Architecture
 
-**CloudOps 360: Secure IT Service & Incident Management Platform** is engineered following the **AWS Well-Architected Framework**, balancing Security, Reliability, Performance Efficiency, and Cost Optimization for enterprise operations.
+This is the architecture the scripts in `infrastructure/aws/` deploy. It is sized for an AWS lab
+account (free-tier friendly: no NAT Gateway, no load balancer, single-AZ RDS). An optional
+production extension is described at the end.
 
----
+> **Status:** designed and scripted, **not yet deployed or verified on AWS** from this repository.
+> Run `infrastructure/aws/verify_deployment.sh` on your instance to collect evidence for each claim.
 
-## 1. End-to-End AWS Architecture Diagram
+## 1. Lab architecture (Labs 1–3)
 
 ```mermaid
 flowchart TB
-    subgraph Users ["Enterprise Actors"]
-        Emp["Employee (Browser)"]
-        Tech["Technician (Browser)"]
-        Admin["Administrator (Browser)"]
-    end
+    U["Users: Employee / Technician / Admin<br/>(browser)"]
 
-    subgraph AWSCloud ["Amazon Web Services (AWS) Cloud — Region: us-east-1"]
-        subgraph EdgeLayer ["Edge & DNS Layer"]
-            Route53["Amazon Route 53 (DNS)"]
-            ACM["AWS Certificate Manager (TLS/SSL)"]
-            ALB["Application Load Balancer (HTTPS:443 / Target Group)"]
-        end
+    subgraph AWS["AWS Region (e.g. us-east-1)"]
+        IAM["IAM role CloudOps360-EC2-Role<br/>(instance profile, least privilege)"]
+        SM["AWS Secrets Manager<br/>cloudops360/prod/db<br/>cloudops360/prod/app"]
 
-        subgraph VPC ["Amazon Virtual Private Cloud (10.0.0.0/16)"]
-            subgraph PublicSubnets ["Public Subnets (us-east-1a, us-east-1b)"]
-                NATGW["NAT Gateway"]
-                IGW["Internet Gateway"]
-                ALB_Node["ALB Public Endpoints"]
+        subgraph VPC["VPC 10.0.0.0/16"]
+            subgraph PUB["Public subnet(s) — sg-web"]
+                EC2A["EC2 #1 Amazon Linux 2023<br/>Nginx :80/:443 → Gunicorn 127.0.0.1:8000 → Flask"]
+                EC2B["EC2 #2 (optional, Lab 2/3)<br/>same AMI/scripts — proves shared storage"]
             end
-
-            subgraph AppTierSubnets ["Application Tier — Private Subnets"]
-                subgraph ASG ["Auto Scaling Group (EC2 Linux Instances)"]
-                    EC2_1["EC2 Instance 1\n(Nginx + Gunicorn + Flask)\nIAM: CloudOps360-EC2-Role"]
-                    EC2_2["EC2 Instance 2\n(Nginx + Gunicorn + Flask)\nIAM: CloudOps360-EC2-Role"]
-                end
+            subgraph PRIV["Private subnets in 2 AZs (no internet route)"]
+                RDS[("Amazon RDS for MySQL 8.0<br/>sg-db: 3306 from sg-web only<br/>storage encrypted (KMS), not public")]
+                EFS[("Amazon EFS<br/>sg-efs: 2049 from sg-web only<br/>encrypted at rest + TLS in transit")]
             end
-
-            subgraph DataTierSubnets ["Data & Storage Tier — Isolated Private Subnets"]
-                RDS["Amazon RDS for MySQL 8.0\n(Multi-AZ Active/Standby)\nEncrypted with AWS KMS"]
-                EFS["Amazon EFS Shared File System\n(General Purpose / POSIX Mounts)\nEncrypted with AWS KMS\nMount: /mnt/efs/cloudops360-attachments"]
-            end
-        end
-
-        subgraph SecurityAndMgmt ["Security & Governance Services"]
-            SecretsMgr["AWS Secrets Manager\n(DB Credentials & Flask Secret)"]
-            CloudWatch["Amazon CloudWatch\n(Logs, Alarms & Metrics)"]
-            IAM["AWS Identity & Access Management (IAM)\n(Least-Privilege Instance Roles)"]
         end
     end
 
-    %% Network Connections
-    Emp -->|HTTPS 443| Route53
-    Tech -->|HTTPS 443| Route53
-    Admin -->|HTTPS 443| Route53
-    Route53 --> ALB
-    ACM -.->|TLS Termination| ALB
-    ALB -->|HTTP 80 / Reverse Proxy| EC2_1
-    ALB -->|HTTP 80 / Reverse Proxy| EC2_2
-
-    %% Storage Connections
-    EC2_1 -->|MySQL Protocol: TCP 3306| RDS
-    EC2_2 -->|MySQL Protocol: TCP 3306| RDS
-    EC2_1 -->|NFSv4.1 Protocol: TCP 2049 (TLS)| EFS
-    EC2_2 -->|NFSv4.1 Protocol: TCP 2049 (TLS)| EFS
-
-    %% Management Connections
-    EC2_1 -.->|IAM Role Assume| SecretsMgr
-    EC2_2 -.->|IAM Role Assume| SecretsMgr
-    EC2_1 -.->|Forward Logs & Metrics| CloudWatch
-    EC2_2 -.->|Forward Logs & Metrics| CloudWatch
-    IAM -.->|Assigned to| ASG
+    U -->|"HTTPS 443 (Lab 3) / HTTP 80 (Lab 1-2)"| EC2A
+    U -.-> EC2B
+    EC2A -->|"MySQL 3306, TLS (DB_SSL_CA)"| RDS
+    EC2B -->|"MySQL 3306, TLS"| RDS
+    EC2A -->|"NFS 2049 over TLS (efs-utils)"| EFS
+    EC2B -->|"NFS 2049 over TLS"| EFS
+    EC2A -.->|"GetSecretValue via instance role"| SM
+    IAM -.-> EC2A
+    IAM -.-> EC2B
 ```
 
----
+### What lives where
 
-## 2. Infrastructure Component Specifications
+| Data | Location | Notes |
+| :--- | :--- | :--- |
+| Users, tickets, comments, status history, notifications, SLA policies, audit logs, login attempts | Amazon RDS for MySQL (`cloudops360` database) | Lab 1 uses MariaDB on the instance; schema is identical (Alembic migrations) |
+| Attachment metadata (owner, ticket, size, MIME type, SHA-256, storage key) | RDS `attachments` table | |
+| Attachment bytes | Amazon EFS `/mnt/efs/cloudops360-attachments/YYYY/MM/<uuid>.<ext>` | Lab 1: `/var/lib/cloudops360/uploads` |
+| Flask `SECRET_KEY`, DB credentials | Secrets Manager (Lab 3); root-owned `0640` env file before that | Never in Git, never in responses or logs |
 
-| Layer | AWS Service | Configuration Details | Purpose |
+### Request path
+
+`Browser → Nginx (TLS termination, static files, 13 MB body limit) → Gunicorn on 127.0.0.1:8000 →
+Flask (ProxyFix trusts exactly one proxy) → RDS / EFS`. Gunicorn never listens on a public
+interface; the database and NFS ports are reachable only from `sg-web`.
+
+## 2. Security groups
+
+| Security group | Inbound rule | Source | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Compute** | Amazon EC2 (Linux) | Amazon Linux 2023 / Ubuntu 22.04, `t3.micro` or `t3.small` (Free-tier eligible) | Hosts Nginx reverse proxy, Gunicorn WSGI, and Flask application factory. |
-| **Application Server** | Gunicorn | 3 Sync Workers, bound to Unix socket `/run/cloudops360/cloudops360.sock` | High-throughput, concurrent Python request execution. |
-| **Web Server** | Nginx | HTTP reverse proxy, HTTPS termination, static asset caching, Gzip compression | Directs client requests to Gunicorn, handles TLS certificates, serves static files. |
-| **Relational Database** | Amazon RDS for MySQL | MySQL 8.0 engine, `db.t3.micro`, Storage: 20GB gp3 with auto-scaling | Manages users, tickets, comments, attachment metadata, audit logs, SLA policies. |
-| **Shared File Storage** | Amazon EFS | General Purpose mode, Bursting throughput, KMS encryption at rest | Mounts at `/mnt/efs/cloudops360-attachments` to store screenshots, logs, diagnostic zips. |
-| **Secrets & Keys** | AWS Secrets Manager | JSON secret `cloudops360/production/db-secret` with auto-rotation | Eliminates permanent hardcoded database credentials from source code and `.env`. |
-| **Access Control** | AWS IAM | Instance Profile `CloudOps360-EC2-Role` with least-privilege policy | Authorizes EC2 instances to retrieve Secrets Manager keys and mount EFS without access keys. |
-| **Monitoring** | Amazon CloudWatch | System metrics, application error alarms, access logs | Real-time observability of EC2 CPU, RDS replication latency, and audit logs. |
+| `sg-web` | TCP 443 | `0.0.0.0/0` | HTTPS (Lab 3) |
+| `sg-web` | TCP 80 | `0.0.0.0/0` | HTTP (Lab 1–2; redirect to HTTPS in Lab 3) |
+| `sg-web` | TCP 22 | **your IP /32 only** (or no rule — use EC2 Instance Connect / SSM) | Administration |
+| `sg-db` | TCP 3306 | `sg-web` (security-group reference) | MySQL from the app tier only |
+| `sg-efs` | TCP 2049 | `sg-web` (security-group reference) | NFS from the app tier only |
 
----
+Outbound: defaults (the instance needs HTTPS to reach Secrets Manager, package repositories and GitHub).
+RDS is created with **Public access = No**; EFS mount targets exist only in private subnets.
 
-## 3. Security Group Firewall Topology
+## 3. Multi-instance shared storage
 
-```mermaid
-flowchart LR
-    Internet((Public Internet))
-    SG_ALB["Security Group: sg-alb\nInbound: TCP 80, 443 from 0.0.0.0/0\nOutbound: TCP 80 to sg-ec2"]
-    SG_EC2["Security Group: sg-ec2\nInbound: TCP 80 from sg-alb\nInbound: TCP 22 from Admin IP\nOutbound: ALL traffic"]
-    SG_RDS["Security Group: sg-rds\nInbound: TCP 3306 from sg-ec2 ONLY\nOutbound: None"]
-    SG_EFS["Security Group: sg-efs\nInbound: TCP 2049 from sg-ec2 ONLY\nOutbound: None"]
+Both EC2 instances mount the **same** EFS file system at `/mnt/efs` and point `UPLOAD_FOLDER`
+at `/mnt/efs/cloudops360-attachments`. Because metadata is in RDS and bytes are on EFS, a file
+uploaded through instance #1 is downloadable through instance #2. The `/health` endpoint returns
+the serving instance's hostname so you can show which instance answered, and
+`flask storage-check` verifies every attachment row against the file and its SHA-256 on each
+instance. The `efs` storage backend refuses uploads if `/mnt/efs` is not actually mounted, so an
+instance with a failed mount can never silently write to its local disk.
 
-    Internet --> SG_ALB
-    SG_ALB --> SG_EC2
-    SG_EC2 --> SG_RDS
-    SG_EC2 --> SG_EFS
-```
+Without a load balancer, demonstrate this by opening each instance's public address in turn.
 
-### Security Group Inbound/Outbound Rules
+## 4. Optional production extension (costs money — not part of the lab scripts)
 
-1. **`sg-alb` (Application Load Balancer SG)**:
-   - Inbound: `TCP 80` (HTTP) from `0.0.0.0/0`
-   - Inbound: `TCP 443` (HTTPS) from `0.0.0.0/0`
-   - Outbound: `TCP 80` targeting `sg-ec2`
-2. **`sg-ec2` (Application Instances SG)**:
-   - Inbound: `TCP 80` from `sg-alb`
-   - Inbound: `TCP 22` (SSH) restricted to authorized administrator CIDR block (e.g. `203.0.113.50/32`)
-   - Outbound: `TCP 3306` to `sg-rds`, `TCP 2049` to `sg-efs`, `HTTPS 443` to AWS API endpoints.
-3. **`sg-rds` (Database SG — Strictly Private)**:
-   - Inbound: `TCP 3306` (MySQL) restricted to source security group `sg-ec2`. **Never exposed to `0.0.0.0/0`.**
-   - Outbound: None.
-4. **`sg-efs` (Shared Storage SG — Strictly Private)**:
-   - Inbound: `TCP 2049` (NFS) restricted to source security group `sg-ec2`. **Never exposed publicly.**
-   - Outbound: None.
-
----
-
-## 4. Multi-Instance High Availability & EFS Shared Consistency
-
-When multiple EC2 instances are launched behind the ALB:
-1. **Stateless Compute**: Flask stores sessions in cryptographically signed, encrypted client cookies (`SESSION_COOKIE_HTTPONLY=True`, `SESSION_COOKIE_SAMESITE='Lax'`). Any instance can serve any user request without requiring sticky sessions.
-2. **Centralized Relational State**: All relational data (tickets, status transitions, comments, audit logs) reside centrally in Amazon RDS.
-3. **Unified Diagnostic File Store**: When an employee uploads an incident attachment on `EC2 Instance 1`, the file is written to `/mnt/efs/cloudops360-attachments/<uuid>.<ext>` on Amazon EFS. Because `EC2 Instance 2` mounts the identical EFS filesystem, a technician whose request is routed to `EC2 Instance 2` immediately downloads and inspects the identical file without replication delay or synchronization scripts.
+* Application Load Balancer with an ACM certificate across two public subnets; EC2 instances move
+  to private subnets behind it (requires a NAT Gateway or VPC endpoints for outbound access).
+* Auto Scaling group using a launch template that runs `ec2_bootstrap.sh` and `efs_mount_setup.sh`.
+* RDS Multi-AZ, automated backups with point-in-time recovery, deletion protection.
+* VPC endpoints for Secrets Manager, CloudWatch agent for logs and metrics, AWS WAF on the ALB.

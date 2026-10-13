@@ -1,37 +1,44 @@
+# CloudOps 360 - Gunicorn systemd unit (Amazon Linux 2023)
+# Install: sudo cp cloudops360.service /etc/systemd/system/ && sudo systemctl daemon-reload
 [Unit]
-Description=Gunicorn instance serving CloudOps 360 Web Application
-After=network.target remote-fs.target
-Wants=remote-fs.target
+Description=CloudOps 360 (Gunicorn WSGI server)
+After=network-online.target remote-fs.target
+Wants=network-online.target
+# Starts only after the EFS mount (if /mnt/efs is in /etc/fstab) is available
+RequiresMountsFor=/mnt/efs
 
 [Service]
 Type=notify
-User=ec2-user
-Group=ec2-user
-WorkingDirectory=/var/www/cloudops-360
-RuntimeDirectory=cloudops360
-RuntimeDirectoryMode=0755
-
-EnvironmentFile=/var/www/cloudops-360/.env
-Environment="PATH=/var/www/cloudops-360/.venv/bin:/usr/local/bin:/usr/bin"
-Environment="PYTHONUNBUFFERED=1"
-
-ExecStart=/var/www/cloudops-360/.venv/bin/gunicorn \
-    --workers 3 \
-    --worker-class sync \
-    --bind unix:/run/cloudops360/cloudops360.sock \
-    --umask 007 \
-    --timeout 120 \
-    --access-logfile /var/log/cloudops360/access.log \
-    --error-logfile /var/log/cloudops360/error.log \
-    --capture-output \
+NotifyAccess=main
+User=cloudops
+Group=cloudops
+WorkingDirectory=/opt/cloudops360
+# Root-owned 0640 file; holds non-secret settings plus secret *names* (values live in Secrets Manager)
+EnvironmentFile=/etc/cloudops360/cloudops360.env
+Environment=FLASK_ENV=production
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/cloudops360/.venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:8000 \
+    --timeout 60 \
+    --forwarded-allow-ips 127.0.0.1 \
+    --access-logfile - \
+    --error-logfile - \
     wsgi:app
-
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed
-TimeoutStopSec=5
-PrivateTmp=true
-Restart=always
+TimeoutStopSec=10
+Restart=on-failure
 RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=multi-user.target

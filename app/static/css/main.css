@@ -671,3 +671,9 @@ a.stat-card:hover { border-color: rgba(6, 182, 212, 0.45); transform: translateY
 
 .btn-cyan:disabled, .btn-cyan.disabled { background-color: #0e7490; color: rgba(255, 255, 255, 0.75); }
 .workflow-step.current { background: #0e7490; border-color: #0e7490; }
+
+/* Light theme: Bootstrap's bright cyan "info" text is too faint on white (WCAG) */
+[data-bs-theme="light"] .text-info { color: #0e7490 !important; }
+[data-bs-theme="light"] .badge.bg-info-subtle.text-info { color: #0e7490 !important; }
+/* The sidebar stays navy in both themes, so its wordmark must stay white */
+.app-sidebar .brand-text { color: #ffffff; }
