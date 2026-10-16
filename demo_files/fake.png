@@ -1,0 +1,3 @@
+This is NOT an image. It is a plain text file renamed to .png.
+CloudOps 360 checks the real file content, so this upload must be rejected with:
+"File content does not match the .png file type."

@@ -1,0 +1,11 @@
+2026-10-14 09:31:02 INFO  MailSync[4412]: Starting synchronization for emp.jordan@cloudops360.local
+2026-10-14 09:31:02 INFO  MailSync[4412]: Connecting to mail.cloudops360.local:993 (IMAP/SSL)
+2026-10-14 09:31:07 WARN  MailSync[4412]: TLS handshake took 4870 ms (threshold 2000 ms)
+2026-10-14 09:31:32 ERROR MailSync[4412]: Read timed out after 25000 ms while fetching folder list
+2026-10-14 09:31:32 ERROR MailSync[4412]: Synchronization failed: 0x800CCC0E connection interrupted
+2026-10-14 09:36:32 INFO  MailSync[4412]: Retry 1/3 scheduled
+2026-10-14 09:36:57 ERROR MailSync[4412]: Read timed out after 25000 ms while fetching folder list
+2026-10-14 09:41:57 INFO  MailSync[4412]: Retry 2/3 scheduled
+2026-10-14 09:42:22 ERROR MailSync[4412]: Read timed out after 25000 ms while fetching folder list
+2026-10-14 09:42:22 ERROR MailSync[4412]: Giving up after 3 attempts; account marked Disconnected
+2026-10-14 09:42:22 INFO  NetCheck: VPN=connected  DNS mail.cloudops360.local -> 10.0.20.15  ping=38 ms
