@@ -124,9 +124,9 @@ def test_production_demo_accounts_opt_in(monkeypatch, tmp_path):
 
 
 def test_demo_accounts_hidden_unless_enabled(client, app):
-    assert b'Development demo accounts' not in client.get('/auth/login').data
+    assert b'data-demo-user' not in client.get('/auth/login').data
     app.config['SHOW_DEMO_ACCOUNTS'] = True
-    assert b'Development demo accounts' in client.get('/auth/login').data
+    assert b'data-demo-user' in client.get('/auth/login').data
 
 
 def test_create_admin_command_requires_strong_password(runner, app):
