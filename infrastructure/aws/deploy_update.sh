@@ -10,8 +10,8 @@ BRANCH="${1:-main}"
 APP_DIR=/opt/cloudops360
 ENV_FILE=/etc/cloudops360/cloudops360.env
 [ "$(id -u)" -eq 0 ] || { echo "Run as root (sudo)." >&2; exit 1; }
-git -C "$APP_DIR" fetch --depth 1 origin "$BRANCH"
-git -C "$APP_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
+sudo -u cloudops git -C "$APP_DIR" fetch --depth 1 origin "$BRANCH"
+sudo -u cloudops git -C "$APP_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
 chown -R cloudops:cloudops "$APP_DIR"
 sudo -u cloudops "$APP_DIR/.venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
 (cd "$APP_DIR" && sudo -u cloudops bash -c "set -a; . $ENV_FILE; set +a; .venv/bin/flask db upgrade")
@@ -20,4 +20,4 @@ systemctl daemon-reload
 systemctl restart cloudops360
 sleep 2
 curl -fsS http://127.0.0.1:8000/health && echo
-echo "[deploy] $(git -C "$APP_DIR" log -1 --oneline) is live."
+echo "[deploy] $(sudo -u cloudops git -C "$APP_DIR" log -1 --oneline) is live."

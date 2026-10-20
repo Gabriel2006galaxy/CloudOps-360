@@ -33,8 +33,8 @@ log "Deploying code (branch $BRANCH) to $APP_DIR"
 if [ ! -d "$APP_DIR/.git" ]; then
     git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$APP_DIR"
 else
-    git -C "$APP_DIR" fetch --depth 1 origin "$BRANCH"
-    git -C "$APP_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
+    sudo -u "$APP_USER" git -C "$APP_DIR" fetch --depth 1 origin "$BRANCH"
+    sudo -u "$APP_USER" git -C "$APP_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
 fi
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
