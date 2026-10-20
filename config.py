@@ -133,7 +133,9 @@ class ProductionConfig(Config):
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/mnt/efs/cloudops360-attachments')
     TRUSTED_PROXY_COUNT = env_int('TRUSTED_PROXY_COUNT', 1)
     ALLOW_SELF_REGISTRATION = env_bool('ALLOW_SELF_REGISTRATION', False)
-    SHOW_DEMO_ACCOUNTS = False
+    # Off by default. Set SHOW_DEMO_ACCOUNTS=true only for a short-lived lab
+    # demonstration: it shows the seeded demo passwords to anyone who opens the site.
+    SHOW_DEMO_ACCOUNTS = env_bool('SHOW_DEMO_ACCOUNTS', False)
     # HSTS is only sent when the request arrived over HTTPS
     ENABLE_HSTS = env_bool('ENABLE_HSTS', True)
 

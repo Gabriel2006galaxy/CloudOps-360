@@ -108,6 +108,21 @@ def test_seed_command_refused_in_production(monkeypatch, tmp_path):
         db.engine.dispose()
 
 
+def test_production_demo_accounts_opt_in(monkeypatch, tmp_path):
+    monkeypatch.setenv('DATABASE_URL', 'sqlite://')
+    monkeypatch.delenv('SHOW_DEMO_ACCOUNTS', raising=False)
+    import importlib, config
+    importlib.reload(config)
+    try:
+        assert config.ProductionConfig.SHOW_DEMO_ACCOUNTS is False
+        monkeypatch.setenv('SHOW_DEMO_ACCOUNTS', 'true')
+        importlib.reload(config)
+        assert config.ProductionConfig.SHOW_DEMO_ACCOUNTS is True
+    finally:
+        monkeypatch.delenv('SHOW_DEMO_ACCOUNTS', raising=False)
+        importlib.reload(config)
+
+
 def test_demo_accounts_hidden_unless_enabled(client, app):
     assert b'Development demo accounts' not in client.get('/auth/login').data
     app.config['SHOW_DEMO_ACCOUNTS'] = True
