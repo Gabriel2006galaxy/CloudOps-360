@@ -4,8 +4,9 @@ This is the architecture the scripts in `infrastructure/aws/` deploy. It is size
 account (free-tier friendly: no NAT Gateway, no load balancer, single-AZ RDS). An optional
 production extension is described at the end.
 
-> **Status:** Lab 1 (single EC2 instance: Nginx + Gunicorn + MariaDB) **deployed and verified live** in the
-> AWS Academy Sandbox. The RDS / EFS / IAM / Secrets Manager parts are designed and scripted, **not yet verified on AWS**.
+> **Status:** deployed and **verified live** on 2026-10-24 (own AWS account, `ap-south-1`): one EC2 instance
+> (Nginx + Gunicorn), RDS for MySQL (private, encrypted, TLS), EFS (encrypted, TLS), IAM role, Secrets Manager
+> and HTTPS. The multi-instance design below is the documented extension.
 > Run `infrastructure/aws/verify_deployment.sh` on your instance to collect evidence for each claim.
 
 ## 1. Lab architecture (Labs 1–3)

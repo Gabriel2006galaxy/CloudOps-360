@@ -1,6 +1,34 @@
 # CloudOps 360 — Cheat Sheet (everything to copy-paste)
 
-## 1. Demo day: put the site on AWS (start ~20 minutes before)
+## 0. FINAL DEMO: the site is always on (own AWS account, all 3 labs)
+- Open **https://13.201.137.27** → "not private" warning → **Advanced → Proceed** (self-signed
+  certificate, still encrypted). Demo buttons work as before. Don't stop the instance (the IP would change).
+- AWS console: sign in as **root user** (your email + password + Microsoft Authenticator code) →
+  region **Asia Pacific (Mumbai)**.
+- What to show for each lab:
+
+| Lab | Console page | Point at |
+| :-- | :-- | :-- |
+| 1 | **EC2 → Instances → cloudops360-web** | Running, t3.micro, Amazon Linux 2023, public IP |
+| 2 | **RDS → Databases → cloudops360-db** | MySQL 8.4, **Publicly accessible: No**, **Encryption: Enabled**, security group cloudops360-db |
+| 2 | **EFS → cloudops360-attachments** | **Encrypted**, mount targets; upload a file in the app → it is stored on EFS |
+| 3 | **EC2 instance → Security tab** | **IAM role: CloudOps360-EC2-Role** (no access keys) |
+| 3 | **Secrets Manager** | `cloudops360/prod/db`, `cloudops360/prod/app` (the app reads them via the role) |
+| 3 | **Browser 🔒** | https, http → https redirect |
+| 2+3 | **Proof report** (server terminal, see below) | every line **PASS** |
+
+Proof report: EC2 → cloudops360-web → **Connect → EC2 Instance Connect** → paste:
+```bash
+sudo bash /opt/cloudops360/infrastructure/aws/verify_deployment.sh | grep -E "^(PASS|FAIL)"
+```
+Update the live server after pushing code:
+```bash
+sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main
+```
+Cost: about $1/day from the free credits ($100, Free plan, budget alert at $0.01). After the final
+demo, delete RDS, EFS and the instance (or ask Claude for the clean-up steps).
+
+## 1. Backup: AWS Academy Sandbox (only Lab 1; start ~20 minutes before)
 1. AWS Academy → course → **Modules** → **Sandbox environment** → **Start Lab** → wait for green dot → click **AWS**.
    - If it says "You must first log out" → click **here** → click **AWS** again.
 2. Region **N. Virginia** → **EC2** → **Launch instance**:
@@ -72,13 +100,14 @@ git push origin main
 ```
    Username `Gabriel2006galaxy`, password = your **GitHub access token**.
 3. AWS:
-   - **New session / demo day:** launch with the User data lines — it installs the newest code automatically.
-   - **Server already running:** Connect → run:
+   - **Own account (cloudops360-web is always on):** Connect → run:
 ```bash
 sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main
 ```
+   - **Sandbox (backup):** launch with the User data lines — it installs the newest code automatically.
 
 ## 5. Remember
+- Own account: Free plan only, never upgrade; the budget e-mail warns you if anything costs money.
 - The AWS Academy **Sandbox deletes the server when the session ends** — just relaunch with User data.
 - **End Lab** = safe. **Reset** = deletes everything — never click.
 - In the browser terminal, paste with **right-click → Paste** (Ctrl + Shift + V pastes twice).
@@ -87,9 +116,9 @@ sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main
 
 ## 6. Starting a new chat
 Open the chat in the `CloudOps-360` folder and say:
-> Read README.md, docs/REQUIREMENTS_CHECKLIST.md, docs/CHEAT_SHEET.md and infrastructure/aws/user_data_demo.sh. The site is deployed on the AWS Academy Sandbox using the User data script. Next I want to … (add a feature / do Lab 2 RDS + EFS / Lab 3 security).
+> Read README.md, docs/REQUIREMENTS_CHECKLIST.md and docs/CHEAT_SHEET.md. All 3 labs run on my own AWS account (Mumbai, https://13.201.137.27). Next I want to … (add a feature / clean up AWS after the demo).
 
 ## 7. Next steps (not done yet)
-- Lab 2: Amazon RDS (database) + Amazon EFS (files) — guide in `docs/aws_deployment.md` section 2.
-- Lab 3: IAM role, Secrets Manager, HTTPS — section 3 (the Sandbox may block some of these; check first).
-- Optional features: star rating (CSAT), auto-assignment, SLA escalation, email alerts.
+- After the final demo: delete RDS, EFS, the instance and the secrets (ask Claude for the clean-up steps).
+- Optional: two servers sharing the EFS files (`docs/aws_deployment.md` §2.3).
+- Optional features: SLA escalation, email alerts, two-step login (OTP).

@@ -9,7 +9,7 @@
 | :--- | :--- |
 | **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
 | **Tests** | 144 pytest tests — passing on SQLite **and** MySQL 8.0 |
-| **Status** | Application complete and verified locally (144 tests). **Lab 1 is verified live on AWS** (AWS Academy Sandbox: EC2 + Nginx + Gunicorn + MariaDB, installed by the 2-line User data script). Lab 2/3 (RDS, EFS, IAM, Secrets Manager, HTTPS) are scripted and documented but **not yet verified on AWS** — see [What still needs your action](#11-what-still-needs-your-action-aws). |
+| **Status** | Application complete and verified locally (144 tests). **All three labs are verified live on AWS** (own AWS account, Mumbai, since 2026-10-24): EC2 + Nginx + Gunicorn, Amazon RDS for MySQL (private, encrypted, TLS), Amazon EFS (encrypted, TLS), IAM role, Secrets Manager and HTTPS; `verify_deployment.sh` all PASS — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
 Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
 [AWS deployment guide](docs/aws_deployment.md) · [Architecture](docs/architecture.md) ·
@@ -228,8 +228,8 @@ Full guide: **[docs/aws_deployment.md](docs/aws_deployment.md)**.
 | Lab | What you do | Scripts |
 | :--- | :--- | :--- |
 | 1 ✅ verified live | EC2 (Amazon Linux 2023) + Nginx + Gunicorn + MySQL-compatible DB on the instance — class demo: paste the 2-line User data (`docs/CHEAT_SHEET.md`) | `user_data_demo.sh` (runs `ec2_bootstrap.sh`, `lab1_mariadb_on_ec2.sh`, demo data) |
-| 2 | Amazon RDS for MySQL (private) + Amazon EFS (TLS mount) | `rds_mysql_setup.sql`, `efs_mount_setup.sh` |
-| 3 | IAM role, Secrets Manager, HTTPS, encryption, private networking, verification | `iam_*.json`, `efs_file_system_policy.json`, `tls_self_signed.sh`, `nginx_https.conf`, `verify_deployment.sh` |
+| 2 ✅ verified live | Amazon RDS for MySQL (private) + Amazon EFS (TLS mount) | `rds_mysql_setup.sql`, `efs_mount_setup.sh` |
+| 3 ✅ verified live | IAM role, Secrets Manager, HTTPS, encryption, private networking, verification — fast path: `cloudshell_lab2_lab3.sh` then `server_lab2_lab3.sh` | `iam_*.json`, `efs_file_system_policy.json`, `tls_self_signed.sh`, `nginx_https.conf`, `verify_deployment.sh` |
 
 Updates: `sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main`.
 
@@ -256,12 +256,11 @@ Updates: `sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main`.
 
 ## 11. What still needs your action (AWS)
 
-Lab 1 (EC2 + Nginx + Gunicorn + MariaDB on the instance) **was done and verified live** in the AWS
-Academy Sandbox with the User data script. Still to do (need AWS, not verified from this repository):
+Labs 1–3 are done and verified live (own AWS account, `ap-south-1`, 2026-10-24). On a new account: launch
+with the User data (Lab 1), then run `cloudshell_lab2_lab3.sh` in CloudShell and the command it prints on
+the instance (Labs 2 and 3). Still open:
 
-1. Create the RDS instance and EFS file system with their security groups (console steps in the guide).
-2. Run the mount scripts on EC2; for a real (non-demo) server create the first admin with `flask create-admin`.
-3. Create the IAM role/instance profile and the two Secrets Manager secrets; switch the env file to `DB_SECRET_NAME`/`APP_SECRET_NAME`.
-4. Enable HTTPS (certbot with a domain, or `tls_self_signed.sh`) and set `SESSION_COOKIE_SECURE=true`.
-5. Run `verify_deployment.sh` and the CloudShell commands, and keep the output as evidence.
-6. Stop/delete resources when finished (cost section of the guide).
+1. Optional: the two-instance EFS sharing demo (guide §2.3).
+2. A trusted certificate needs a domain name (certbot); the lab uses a self-signed one.
+3. For a real (non-demo) server: skip `seed-db` and create the first admin with `flask create-admin`.
+4. Delete the RDS instance, EFS file system and EC2 instance after the final demo (cost section of the guide).

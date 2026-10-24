@@ -43,19 +43,19 @@ Last local run (2026-10-24): `pytest` → **144 passed** (SQLite) and **144 pass
 
 | # | Control | Implementation | How to verify | Status |
 | :-: | :--- | :--- | :--- | :-: |
-| W1 | EC2 IAM instance role, no access keys | `iam_ec2_trust_policy.json`; boto3 uses instance credentials | `verify_deployment.sh` (role attached, no `~/.aws/credentials`, no `AKIA` keys) | 🟡 |
-| W2 | Least-privilege policy | `iam_instance_profile_policy.json`: GetSecretValue on 2 secrets; ClientMount/Write on 1 file system | `aws iam get-role-policy ...` | 🟡 |
-| W3 | Secrets Manager for DB credentials and SECRET_KEY | `DB_SECRET_NAME`, `APP_SECRET_NAME` (`services/secrets.py`) | `verify_deployment.sh` (no `DATABASE_URL` in env file) | 🟡 |
-| W4 | HTTPS/TLS | `nginx_https.conf`, `tls_self_signed.sh` / certbot; HTTP → HTTPS redirect | `verify_deployment.sh` (HSTS, redirect), browser padlock | 🟡 |
-| W5 | RDS encrypted at rest | chosen at creation | `aws rds describe-db-instances` → `StorageEncrypted: true` | 🟡 |
-| W6 | EFS encrypted at rest | chosen at creation | `aws efs describe-file-systems` → `Encrypted: true` | 🟡 |
-| W7 | TLS to RDS | `DB_SSL_CA` + `REQUIRE SSL` user | `verify_deployment.sh` → `Ssl_version` | 🟡 |
-| W8 | TLS to EFS | efs-utils `tls`; file-system policy denies insecure transport | `verify_deployment.sh` (fstab `tls`, stunnel/efs-proxy) | 🟡 |
-| W9 | RDS private | Public access = No; 3306 only from web SG | `describe-db-instances` → `PubliclyAccessible: false`; SG rules | 🟡 |
-| W10 | EFS private | mount targets in private subnets; 2049 only from web SG | `describe-mount-targets`; SG rules | 🟡 |
-| W11 | Restricted SSH | 22 from one /32 or removed | SG rules | 🟡 |
-| W12 | Minimal exposure on host | Gunicorn 127.0.0.1:8000; MariaDB 127.0.0.1 (Lab 1) | `verify_deployment.sh` (listening sockets) | 🟡 |
-| W13 | Service hardening | dedicated `cloudops` user, systemd `NoNewPrivileges`, `ProtectSystem`, env file 0640 | `verify_deployment.sh` (env file permissions) | 🟡 |
+| W1 | EC2 IAM instance role, no access keys | `iam_ec2_trust_policy.json`; boto3 uses instance credentials | `verify_deployment.sh` PASS on the live server (2026-10-24): role `CloudOps360-EC2-Role` attached, no access keys anywhere | ☑️ |
+| W2 | Least-privilege policy | `iam_instance_profile_policy.json`: Get/DescribeSecret on 2 secrets; ClientMount/Write/RootAccess on 1 file system | CloudShell `describe` output (2026-10-24): `get-role-policy` lists only these actions | ☑️ |
+| W3 | Secrets Manager for DB credentials and SECRET_KEY | `DB_SECRET_NAME`, `APP_SECRET_NAME` (`services/secrets.py`) | `verify_deployment.sh` PASS on the live server (2026-10-24): no `DATABASE_URL`/`SECRET_KEY` in the env file, both loaded from Secrets Manager | ☑️ |
+| W4 | HTTPS/TLS | `nginx_https.conf`, `tls_self_signed.sh` / certbot; HTTP → HTTPS redirect | `verify_deployment.sh` PASS on the live server (2026-10-24): HSTS, HTTP→HTTPS redirect, Secure cookie, security headers (self-signed certificate for the lab) | ☑️ |
+| W5 | RDS encrypted at rest | chosen at creation | CloudShell `describe` output (2026-10-24): `StorageEncrypted: True` | ☑️ |
+| W6 | EFS encrypted at rest | chosen at creation | CloudShell `describe` output (2026-10-24): `Encrypted: True` | ☑️ |
+| W7 | TLS to RDS | `DB_SSL_CA` + `REQUIRE SSL` user | `verify_deployment.sh` PASS on the live server (2026-10-24): database connection encrypted (TLS) | ☑️ |
+| W8 | TLS to EFS | efs-utils `tls`; file-system policy denies insecure transport | `verify_deployment.sh` PASS on the live server (2026-10-24): TLS tunnel running, fstab uses `tls`; the EFS policy denies non-TLS | ☑️ |
+| W9 | RDS private | Public access = No; 3306 only from web SG | CloudShell `describe` output (2026-10-24): `PubliclyAccessible: False`, 3306 only from the web SG; endpoint resolves to a private address | ☑️ |
+| W10 | EFS private | mount targets have no public address; 2049 only from web SG; file system policy allows only the role | CloudShell `describe` output (2026-10-24): SG rules | ☑️ |
+| W11 | Restricted SSH | 22 only from the EC2 Instance Connect range for Mumbai (13.233.177.0/29) | CloudShell `describe` output (2026-10-24): web SG rules | ☑️ |
+| W12 | Minimal exposure on host | Gunicorn 127.0.0.1:8000; MariaDB stopped after the move to RDS | `verify_deployment.sh` PASS on the live server (2026-10-24) (listening sockets) | ☑️ |
+| W13 | Service hardening | dedicated `cloudops` user, systemd `NoNewPrivileges`, `ProtectSystem`, env file 0640 | `verify_deployment.sh` PASS on the live server (2026-10-24): env file `640 root:cloudops` | ☑️ |
 
 **Fallback if Secrets Manager is unavailable:** credentials stay in `/etc/cloudops360/cloudops360.env`
 (root:cloudops 0640, outside the repository). This is weaker (readable by root and the service

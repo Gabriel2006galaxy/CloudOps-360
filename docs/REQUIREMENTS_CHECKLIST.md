@@ -7,7 +7,11 @@ Status key:
 * ⚠️ **Partial** — see note.
 * ⛔ **Not done** — see note.
 
-Latest verification (2026-10-24): `pytest` 144 passed on SQLite and 144 passed on MySQL 8.0.43;
+AWS verification (2026-10-24, own AWS account, ap-south-1): Labs 1–3 live; `verify_deployment.sh` every line PASS;
+CloudShell evidence: RDS encrypted and not public, EFS encrypted, 3306/2049 only from the web security group,
+SSH only from EC2 Instance Connect, IAM policy limited to 2 secrets and 1 file system.
+
+Latest local verification (2026-10-24): `pytest` 144 passed on SQLite and 144 passed on MySQL 8.0.43;
 migration `c3f1a9d27e64` upgraded/downgraded/re-upgraded on MySQL and `flask db check` clean; new
 auto-assignment, availability and rating pages checked in the browser.
 
@@ -24,9 +28,9 @@ and 375 px in dark and light themes.
 | MySQL + Flask-SQLAlchemy + Flask-Migrate | ✅ | migrations verified on MySQL 8.0.43 |
 | Flask-Login, Flask-WTF/WTForms, Werkzeug hashing | ✅ | `test_auth.py` |
 | EC2 Linux, Nginx + Gunicorn | ☑️ | Lab 1 verified live in the AWS Academy Sandbox (Oct 2026): `http://<public-ip>` served by Nginx → Gunicorn, `/health` OK, MariaDB on the instance; installed by `user_data_demo.sh` → `ec2_bootstrap.sh`, `lab1_mariadb_on_ec2.sh` |
-| Amazon RDS for MySQL | 🟡 | `docs/aws_deployment.md §2.1`, `rds_mysql_setup.sql` |
-| Amazon EFS | 🟡 | `efs_mount_setup.sh`; storage abstraction ✅ locally |
-| IAM instance role, least privilege, Secrets Manager | 🟡 | `iam_*.json`; secret resolution code ✅ (fail-closed tests) |
+| Amazon RDS for MySQL | ☑️ | live since 2026-10-24 (own AWS account, Mumbai): MySQL 8.4, not public, encrypted, app user `REQUIRE SSL`; `verify_deployment.sh` all PASS |
+| Amazon EFS | ☑️ | live: encrypted, TLS mount with the instance role, `/health` reports storage `efs` |
+| IAM instance role, least privilege, Secrets Manager | ☑️ | live: role attached, no keys, DB credentials and session key from Secrets Manager (`security_checklist.md` W1–W3) |
 | Git/GitHub, pytest | ✅ | GitHub `main`; 144 tests |
 | Docker Compose for local dev | ⚠️ | file updated (no hard-coded passwords) but **not run** — Docker is not installed on the dev machine; local MySQL 8.0 service used instead |
 
@@ -97,16 +101,16 @@ and 375 px in dark and light themes.
 | Files on storage, metadata + associations in DB | ✅ | live check: row + file + SHA-256 match |
 | Authenticated upload, authorized download | ✅ | `test_authorized_downloads`, `test_upload_denied_on_foreign_ticket` |
 | Safe names, type & size validation, traversal prevention, safe headers, error handling | ✅ | `test_attachments.py` (17 tests) |
-| EFS docs: creation, mount targets, SGs, POSIX permissions, persistence, encryption; never public | 🟡 | `docs/aws_deployment.md §2.2`, `efs_mount_setup.sh`, `efs_file_system_policy.json` |
+| EFS docs: creation, mount targets, SGs, POSIX permissions, persistence, encryption; never public | ☑️ | `docs/aws_deployment.md §2.2`, `efs_mount_setup.sh`, `efs_file_system_policy.json` |
 | Two EC2 instances share attachments | 🟡 | procedure in §2.3; `/health` reports instance; `flask storage-check` per instance |
 
 ## 9. AWS security
 | Requirement | Status | Evidence |
 | :--- | :-: | :--- |
-| IAM role, no keys in code, least privilege | 🟡 | policies in repo; `verify_deployment.sh` checks role + absence of keys |
-| Secrets Manager (with documented fallback) | 🟡 / ✅ code | `services/secrets.py`; fallback documented (`security_checklist.md`) |
-| HTTPS/TLS, encrypted RDS & EFS, DB TLS | 🟡 | `nginx_https.conf`, `tls_self_signed.sh`, `DB_SSL_CA`, `REQUIRE SSL` |
-| Private RDS/EFS, SG-restricted MySQL/NFS, restricted SSH | 🟡 | `docs/architecture.md §2` |
+| IAM role, no keys in code, least privilege | ☑️ | live evidence: `security_checklist.md` W1–W2 |
+| Secrets Manager (with documented fallback) | ☑️ live / ✅ code | `services/secrets.py`; fallback documented (`security_checklist.md`) |
+| HTTPS/TLS, encrypted RDS & EFS, DB TLS | ☑️ (W4–W8) | `nginx_https.conf`, `tls_self_signed.sh`, `DB_SSL_CA`, `REQUIRE SSL` |
+| Private RDS/EFS, SG-restricted MySQL/NFS, restricted SSH | ☑️ (W9–W11) | `docs/architecture.md §2` |
 | App security: CSRF, validation, safe output, secure sessions, SQLi protection, rate limiting, server-side authZ | ✅ | `docs/security_checklist.md` A1–A27 |
 | Audit logs without secrets | ✅ | `test_audit_scrubs_credentials` and audit assertions |
 
@@ -115,7 +119,7 @@ and 375 px in dark and light themes.
 | :--- | :-: | :--- |
 | Structure (factory, blueprints, services, templates, static, migrations, tests, scripts, infrastructure/aws, docs, config, requirements, .env.example, .gitignore, docker-compose, run.py, wsgi.py, README) | ✅ | repository tree |
 | Exact local install/run/migrate/seed/test commands | ✅ | README §3–§7 (Windows commands executed on this machine) |
-| EC2 guide, systemd, Nginx, RDS, EFS, IAM, Secrets Manager, HTTPS, SGs, backup/recovery/cleanup/cost | 🟡 | `docs/aws_deployment.md` |
+| EC2 guide, systemd, Nginx, RDS, EFS, IAM, Secrets Manager, HTTPS, SGs, backup/recovery/cleanup/cost | ☑️ followed on AWS | `docs/aws_deployment.md` |
 | No secrets committed | ✅ | `.env` ignored; staged diff reviewed before every commit |
 
 ## 11. Deliverables
@@ -124,8 +128,8 @@ and 375 px in dark and light themes.
 | Working frontend + backend | ✅ | `app/` |
 | Models + migrations | ✅ | `app/models.py`, `migrations/` |
 | Local dev configuration | ✅ | `.env.example`, `scripts/setup_local_mysql.ps1` |
-| EFS storage integration | ✅ code / 🟡 AWS | `services/storage.py` |
-| AWS deployment config/scripts | 🟡 | `infrastructure/aws/` |
+| EFS storage integration | ✅ code / ☑️ AWS | `services/storage.py` |
+| AWS deployment config/scripts | ☑️ | `infrastructure/aws/` (fast path: `cloudshell_lab2_lab3.sh` + `server_lab2_lab3.sh`) |
 | Automated tests | ✅ | `tests/` (144) |
 | README | ✅ | `README.md` |
 | AWS architecture diagram | ✅ | `docs/architecture.md` |
