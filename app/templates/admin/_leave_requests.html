@@ -1,0 +1,13 @@
+{# Technicians' leave requests waiting for an administrator: approving one marks the technician away. #}
+{% for row in leave_requests %}
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2" role="alert">
+  <i class="bi bi-calendar2-x-fill fs-5" aria-hidden="true"></i>
+  <div class="flex-grow-1"><strong>Leave request:</strong> {{ row.user.full_name }} asks to be away{% if row.user.leave_until %} until {{ row.user.leave_until|dateformat }}{% endif %}{% if row.user.leave_note %} (<em>{{ row.user.leave_note }}</em>){% endif %}.
+    Open tickets: <strong>{{ row.open_count }}</strong>. <span class="small text-muted">Sent {{ row.user.leave_requested_at|timeago }}.</span></div>
+  <form method="POST" action="{{ url_for('admin.decide_leave', user_id=row.user.id) }}" class="d-flex gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" name="decision" value="approve" class="btn btn-sm btn-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Approve</button>
+    <button type="submit" name="decision" value="reject" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Reject</button>
+  </form>
+</div>
+{% endfor %}

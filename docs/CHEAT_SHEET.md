@@ -69,8 +69,10 @@ curl -fsSL https://raw.githubusercontent.com/Gabriel2006galaxy/CloudOps-360/main
   nobody can take a ticket — no daily work for the admin.
 - **Queue:** admin → **Auto-Assignment** shows the 2 sample tickets still waiting and "auto after 4 h /
   12 h" — the system assigns them on its own (technicians can claim them earlier).
-- **Away:** Marcus → **Queue & Workload** → My status **Away**, note "Sick leave" → admin dashboard
-  shows a warning; new tickets go to Sarah only.
+- **Leave (Away):** Marcus (`tech_marcus` / `TechPass123!`) → **Queue & Workload** → reason "Sick leave",
+  back-on date → **Send leave request** (he stays Available). Admin → dashboard shows **Leave request**
+  → **Approve** → Marcus is **Away**: yellow warning with his open tickets, Away badge on **Users &
+  Roles**, new tickets go to Sarah only. Undo: Marcus → **I'm back**.
 - **Settings:** admin → **Auto-Assignment** → ON/OFF, max open tickets per technician (1–50, default
   10), wait times; skills are set on **Users & Roles → edit technician**.
 - **Star rating:** after Jordan presses **Confirm & Close**, the ticket shows **"How was the support?"**

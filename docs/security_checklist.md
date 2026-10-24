@@ -5,7 +5,7 @@ Status legend:
 * 🟡 **Scripted, AWS verification pending** — implemented in `infrastructure/aws/` or documented; must be confirmed on your AWS resources with `verify_deployment.sh` / CloudShell before claiming it.
 * ⛔ **Not implemented**.
 
-Last local run (2026-10-24): `pytest` → **144 passed** (SQLite) and **144 passed** (MySQL 8.0.43 via `scripts\run_tests_mysql.ps1`).
+Last local run (2026-10-25): `pytest` → **145 passed** (SQLite) and **145 passed** (MySQL 8.0.43 via `scripts\run_tests_mysql.ps1`).
 
 ## 1. Application security
 

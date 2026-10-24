@@ -7,11 +7,11 @@ from app.auth.decorators import technician_or_admin_required
 from app.extensions import db
 from app.models import Ticket, TicketPriority, TicketStatus, utcnow
 from app.services import metrics
-from app.services.assignment import format_minutes, set_availability
+from app.services.assignment import cancel_leave_request, format_minutes, request_leave, set_availability
 from app.services.audit import log_audit_event
 from app.services.settings import get_auto_assign_config
 from app.services.workflow import WorkflowError, assign_ticket
-from app.technician.forms import AvailabilityForm
+from app.technician.forms import LeaveRequestForm
 from app.tickets.forms import ClaimForm
 
 technician_bp = Blueprint('technician', __name__, url_prefix='/technician')
@@ -48,33 +48,64 @@ def workload():
         unassigned_tickets=unassigned,
         recently_resolved=recently_resolved,
         claim_form=ClaimForm(),
-        availability_form=AvailabilityForm().fill_from(current_user) if current_user.is_technician else None,
+        leave_form=LeaveRequestForm() if current_user.is_technician else None,
         my_rating=metrics.rating_summary(Ticket.query.filter(Ticket.technician_id == user_id)),
         auto_assign=config,
         wait_labels={p: format_minutes(m) for p, m in config.wait_minutes.items()},
     )
 
 
+def _flash_form_errors(form):
+    for errors in form.errors.values():
+        for err in errors:
+            flash(err, 'danger')
+
+
+@technician_bp.route('/leave-request', methods=['POST'])
+@login_required
+@technician_or_admin_required
+def leave_request():
+    """A technician asks for leave; they become away only when an administrator approves."""
+    if not current_user.is_technician:
+        abort(403)
+    if current_user.is_away or current_user.has_leave_request:
+        flash('You are already away or have a leave request waiting.', 'info')
+        return redirect(url_for('technician.workload'))
+    form = LeaveRequestForm()
+    if form.validate_on_submit():
+        request_leave(current_user, form.away_note.data, form.back_on.data)
+        db.session.commit()
+        flash('Leave request sent to the administrators. You stay available until one of them approves it.', 'info')
+    else:
+        _flash_form_errors(form)
+    return redirect(url_for('technician.workload'))
+
+
+@technician_bp.route('/leave-request/cancel', methods=['POST'])
+@login_required
+@technician_or_admin_required
+def cancel_leave():
+    """Withdraw a leave request that is still waiting for a decision."""
+    if not current_user.is_technician:
+        abort(403)
+    if ClaimForm().validate_on_submit() and current_user.has_leave_request:
+        cancel_leave_request(current_user)
+        db.session.commit()
+        flash('Leave request withdrawn.', 'info')
+    return redirect(url_for('technician.workload'))
+
+
 @technician_bp.route('/availability', methods=['POST'])
 @login_required
 @technician_or_admin_required
 def availability():
-    """A technician marks themselves available or away."""
+    """A technician who is back marks themselves available again (going away needs approval)."""
     if not current_user.is_technician:
         abort(403)
-    form = AvailabilityForm()
-    if form.validate_on_submit():
-        set_availability(current_user, form.status.data == 'available', note=form.away_note.data,
-                         back_on=form.back_on.data, actor=current_user)
+    if ClaimForm().validate_on_submit() and not current_user.is_available:
+        set_availability(current_user, True, actor=current_user)
         db.session.commit()
-        if current_user.is_away:
-            flash(f"You are now {current_user.availability_label.lower()}. No new tickets will be auto-assigned to you.", 'info')
-        else:
-            flash('You are available again and can receive auto-assigned tickets.', 'success')
-    else:
-        for errors in form.errors.values():
-            for err in errors:
-                flash(err, 'danger')
+        flash('You are available again and can receive auto-assigned tickets.', 'success')
     return redirect(url_for('technician.workload'))
 
 

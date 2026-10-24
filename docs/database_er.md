@@ -40,6 +40,9 @@ erDiagram
         bool is_available "away technicians get no auto-assigned tickets"
         varchar away_note
         datetime away_until "available again from this moment"
+        datetime leave_requested_at "leave request waiting for an admin"
+        varchar leave_note
+        datetime leave_until
     }
     ticket_categories {
         int id PK

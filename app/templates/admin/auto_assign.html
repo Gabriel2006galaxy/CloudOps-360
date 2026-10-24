@@ -13,12 +13,13 @@
 {% endblock %}
 
 {% block content %}
+{% include "admin/_leave_requests.html" %}
 {% for row in away_with_work %}
 <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="alert">
   <i class="bi bi-moon-stars-fill fs-5" aria-hidden="true"></i>
-  <div class="flex-grow-1"><strong>{{ row.user.full_name }}</strong> is {{ row.user.availability_label|lower }}{% if row.user.away_note %} ({{ row.user.away_note }}){% endif %}
+  <div class="flex-grow-1"><strong>{{ row.user.full_name }}</strong> is {{ row.user.availability_phrase }}{% if row.user.away_note %} ({{ row.user.away_note }}){% endif %}
     and still has <strong>{{ row.open_count }}</strong> open ticket{{ 's' if row.open_count != 1 }}. They are not moved automatically — reassign the urgent ones.</div>
-  <a href="{{ url_for('tickets.index', technician=row.user.id, status='active') }}" class="btn btn-sm btn-outline-dark">View tickets</a>
+  <a href="{{ url_for('tickets.index', technician=row.user.id, status='active') }}" class="btn btn-sm btn-warning">View tickets</a>
 </div>
 {% endfor %}
 

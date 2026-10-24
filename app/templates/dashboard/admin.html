@@ -20,12 +20,13 @@
 
 {% block content %}
 {% set sla = m.sla %}
+{% with leave_requests = m.leave_requests %}{% include "admin/_leave_requests.html" %}{% endwith %}
 {% for row in m.away_with_work %}
 <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="alert">
   <i class="bi bi-moon-stars-fill fs-5" aria-hidden="true"></i>
-  <div class="flex-grow-1"><strong>{{ row.user.full_name }}</strong> is {{ row.user.availability_label|lower }}{% if row.user.away_note %} ({{ row.user.away_note }}){% endif %}
+  <div class="flex-grow-1"><strong>{{ row.user.full_name }}</strong> is {{ row.user.availability_phrase }}{% if row.user.away_note %} ({{ row.user.away_note }}){% endif %}
     and still has <strong>{{ row.open_count }}</strong> open ticket{{ 's' if row.open_count != 1 }}. New tickets are not given to them.</div>
-  <a href="{{ url_for('tickets.index', technician=row.user.id, status='active') }}" class="btn btn-sm btn-outline-dark">Reassign</a>
+  <a href="{{ url_for('tickets.index', technician=row.user.id, status='active') }}" class="btn btn-sm btn-warning">Reassign</a>
 </div>
 {% endfor %}
 <div class="row g-3 mb-4">

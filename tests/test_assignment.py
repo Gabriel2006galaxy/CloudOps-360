@@ -255,28 +255,77 @@ def test_admin_sets_technician_skills_and_availability(client, admin_user, tech_
 
 # ---------------- technician status ---------------- #
 
-def test_technician_marks_themselves_away_and_admins_are_warned(client, admin_user, emp_user, tech_user):
+def test_technician_asks_for_leave_and_an_admin_approves_it(client, admin_user, emp_user, tech_user):
     make_ticket(emp_user, technician=tech_user, status=S.IN_PROGRESS)
     login(client, 'test_tech')
-    assert client.post('/technician/availability', data={'status': 'away', 'away_note': 'Sick'}).status_code == 302
-    assert _reload(tech_user).is_away
-    assert Notification.query.filter_by(user_id=admin_user.id, title='Technician User is away').count() == 1
-    page = client.get('/technician/workload').get_data(as_text=True)
-    assert 'You receive no auto-assigned tickets' in page
-
-    yesterday = (utcnow() - timedelta(days=1)).date().isoformat()
-    client.post('/technician/availability', data={'status': 'away', 'back_on': yesterday})
-    assert _reload(tech_user).away_until is None  # past return dates are rejected
-
-    client.post('/technician/availability', data={'status': 'available'})
+    # Going away directly is not possible any more
+    client.post('/technician/availability', data={'status': 'away', 'away_note': 'Sick'})
     assert not _reload(tech_user).is_away
+
+    back_on = (utcnow() + timedelta(days=3)).date()
+    resp = client.post('/technician/leave-request', data={'away_note': 'Sick leave', 'back_on': back_on.isoformat()})
+    assert resp.status_code == 302
+    tech = _reload(tech_user)
+    assert tech.has_leave_request and not tech.is_away  # still available until an admin approves
+    assert Notification.query.filter_by(user_id=admin_user.id, title='Leave request: Technician User').count() == 1
+    assert 'waiting for an administrator' in client.get('/technician/workload').get_data(as_text=True)
     logout(client)
 
     login(client, 'test_admin')
-    assert client.post('/technician/availability', data={'status': 'away'}).status_code == 403
+    page = client.get('/dashboard/admin').get_data(as_text=True)
+    assert 'value="approve"' in page and 'Sick leave' in page
+    assert 'Leave requested' in client.get('/admin/users').get_data(as_text=True)
+    resp = client.post(f'/admin/users/{tech_user.id}/leave-request', data={'decision': 'approve'})
+    assert resp.status_code == 302
+    tech = _reload(tech_user)
+    assert tech.is_away and tech.away_note == 'Sick leave' and tech.away_until.date() == back_on
+    assert not tech.has_leave_request
+    assert Notification.query.filter_by(user_id=tech_user.id, title='Leave approved').count() == 1
+    page = client.get('/dashboard/admin').get_data(as_text=True)
+    assert 'value="approve"' not in page and 'still has <strong>1</strong> open ticket' in page
+    assert AuditLog.query.filter_by(action='TECH_LEAVE_APPROVED').count() == 1
     logout(client)
+
+    login(client, 'test_tech')
+    assert 'Your leave was approved' in client.get('/technician/workload').get_data(as_text=True)
+    client.post('/technician/availability')
+    assert not _reload(tech_user).is_away
+
+
+def test_leave_request_rules(client, admin_user, emp_user, tech_user):
+    login(client, 'test_tech')
+    client.post('/technician/leave-request', data={'away_note': ''})
+    assert not _reload(tech_user).has_leave_request  # a reason is required
+    yesterday = (utcnow() - timedelta(days=1)).date().isoformat()
+    client.post('/technician/leave-request', data={'away_note': 'Holiday', 'back_on': yesterday})
+    assert not _reload(tech_user).has_leave_request  # past return dates are rejected
+
+    client.post('/technician/leave-request', data={'away_note': 'Holiday'})
+    assert _reload(tech_user).has_leave_request
+    client.post('/technician/leave-request/cancel')
+    assert not _reload(tech_user).has_leave_request
+    client.post('/technician/leave-request', data={'away_note': 'Training'})
+    # a technician cannot approve a leave request, not even their own
+    assert client.post(f'/admin/users/{tech_user.id}/leave-request', data={'decision': 'approve'}).status_code == 403
+    logout(client)
+
     login(client, 'test_emp')
-    assert client.post('/technician/availability', data={'status': 'away'}).status_code == 403
+    assert client.post('/technician/leave-request', data={'away_note': 'x'}).status_code == 403
+    assert client.post(f'/admin/users/{tech_user.id}/leave-request', data={'decision': 'approve'}).status_code == 403
+    logout(client)
+
+    login(client, 'test_admin')
+    assert client.post('/technician/leave-request', data={'away_note': 'x'}).status_code == 403
+    assert client.post(f'/admin/users/{tech_user.id}/leave-request', data={'decision': 'maybe'}).status_code == 400
+    client.post(f'/admin/users/{tech_user.id}/leave-request', data={'decision': 'reject'})
+    tech = _reload(tech_user)
+    assert not tech.has_leave_request and not tech.is_away
+    assert Notification.query.filter_by(user_id=tech_user.id, title='Leave request rejected').count() == 1
+    client.post(f'/admin/users/{tech_user.id}/leave-request', data={'decision': 'approve'})
+    assert not _reload(tech_user).is_away  # nothing left to approve
+    assert [a.action for a in AuditLog.query.filter(AuditLog.action.like('TECH_LEAVE_%'))
+            .order_by(AuditLog.id)] == ['TECH_LEAVE_REQUESTED', 'TECH_LEAVE_CANCELLED', 'TECH_LEAVE_REQUESTED',
+                                        'TECH_LEAVE_REJECTED']
 
 
 # ---------------- customer satisfaction ---------------- #

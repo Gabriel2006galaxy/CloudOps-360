@@ -11,7 +11,7 @@ AWS verification (2026-10-24, own AWS account, ap-south-1): Labs 1–3 live; `ve
 CloudShell evidence: RDS encrypted and not public, EFS encrypted, 3306/2049 only from the web security group,
 SSH only from EC2 Instance Connect, IAM policy limited to 2 secrets and 1 file system.
 
-Latest local verification (2026-10-24): `pytest` 144 passed on SQLite and 144 passed on MySQL 8.0.43;
+Latest local verification (2026-10-25): `pytest` 145 passed on SQLite and 145 passed on MySQL 8.0.43;
 migration `c3f1a9d27e64` upgraded/downgraded/re-upgraded on MySQL and `flask db check` clean; new
 auto-assignment, availability and rating pages checked in the browser.
 
@@ -31,7 +31,7 @@ and 375 px in dark and light themes.
 | Amazon RDS for MySQL | ☑️ | live since 2026-10-24 (own AWS account, Mumbai): MySQL 8.4, not public, encrypted, app user `REQUIRE SSL`; `verify_deployment.sh` all PASS |
 | Amazon EFS | ☑️ | live: encrypted, TLS mount with the instance role, `/health` reports storage `efs` |
 | IAM instance role, least privilege, Secrets Manager | ☑️ | live: role attached, no keys, DB credentials and session key from Secrets Manager (`security_checklist.md` W1–W3) |
-| Git/GitHub, pytest | ✅ | GitHub `main`; 144 tests |
+| Git/GitHub, pytest | ✅ | GitHub `main`; 145 tests |
 | Docker Compose for local dev | ⚠️ | file updated (no hard-coded passwords) but **not run** — Docker is not installed on the dev machine; local MySQL 8.0 service used instead |
 
 ## 2. UI/UX
@@ -130,7 +130,7 @@ and 375 px in dark and light themes.
 | Local dev configuration | ✅ | `.env.example`, `scripts/setup_local_mysql.ps1` |
 | EFS storage integration | ✅ code / ☑️ AWS | `services/storage.py` |
 | AWS deployment config/scripts | ☑️ | `infrastructure/aws/` (fast path: `cloudshell_lab2_lab3.sh` + `server_lab2_lab3.sh`) |
-| Automated tests | ✅ | `tests/` (144) |
+| Automated tests | ✅ | `tests/` (145) |
 | README | ✅ | `README.md` |
 | AWS architecture diagram | ✅ | `docs/architecture.md` |
 | ER diagram | ✅ | `docs/database_er.md` |
@@ -146,7 +146,8 @@ and 375 px in dark and light themes.
 | Unclaimed tickets auto-assigned after a per-priority wait (on page loads and `flask auto-assign`) | ✅ | `test_unclaimed_tickets_are_assigned_after_the_wait_time`, `test_sweep_runs_during_normal_page_loads` |
 | Weighted workload points, specialists first (technician skills), random only on ties | ✅ | `test_workload_points_weight_critical_work`, `test_specialists_come_first` |
 | Maximum open tickets per technician (default 10, admin sets 1–50) | ✅ | `test_maximum_open_tickets_per_technician`, `test_settings_page_limits_max_open_between_1_and_50` |
-| Technician Available/Away with note and "back on" date; automatic return; admin warning for away technicians with open tickets | ✅ | `test_away_technicians_never_get_tickets`, `test_away_period_ends_automatically`, `test_technician_marks_themselves_away_and_admins_are_warned` |
+| Technician Available/Away with note and "back on" date; automatic return; admin warning for away technicians with open tickets | ✅ | `test_away_technicians_never_get_tickets`, `test_away_period_ends_automatically`, `test_technician_asks_for_leave_and_an_admin_approves_it` |
+| Leave requests: a technician asks, only an admin's approval makes them Away; reject / cancel; admins notified; audit trail | ✅ | `test_technician_asks_for_leave_and_an_admin_approves_it`, `test_leave_request_rules` (migration `d4b2e8f13a57`, checked in the browser 2026-10-25) |
 | Runs on its own: no admin action needed (settings page optional; `flask auto-assign --now` for operators) | ✅ | `test_no_admin_action_is_needed_to_assign_the_queue` |
 | Every available technician notified about each new ticket, with the number waiting in the queue; admins alerted only when nobody can take a ticket | ✅ | `test_when_every_technician_is_free_the_ticket_waits_to_be_claimed`, `test_away_technicians_are_not_notified_about_new_tickets`, `test_maximum_open_tickets_per_technician` |
 | Reason shown in ticket history ("System (auto-assign)") and audit trail | ✅ | asserted in the tests above |

@@ -15,6 +15,8 @@ Rules (all enforced here, in one place):
    - lowest workload points (open tickets weighted Critical 4, High 3, Medium 2, Low 1),
    - a random pick only between equally loaded technicians.
 5. Away technicians become available again automatically on their 'back on' date.
+6. Technicians cannot mark themselves away: they send a leave request and only an
+   administrator's approval makes them away.
 
 Functions stage changes on the session and leave the commit to the caller.
 """
@@ -54,6 +56,10 @@ def _ticket_link(ticket):
 
 
 # ---------------- technicians ---------------- #
+
+def _open_ticket_count(user):
+    return Ticket.query.filter(Ticket.technician_id == user.id, Ticket.status.in_(S.ACTIVE)).count()
+
 
 def active_technicians():
     return (User.query.filter(User.role == UserRole.TECHNICIAN, User.is_active.is_(True))
@@ -95,6 +101,7 @@ def release_returned_technicians(now=None):
 def set_availability(user, available, note=None, back_on=None, actor=None):
     """Marks a technician available or away. back_on: date they return (00:00 UTC). Caller commits."""
     user.is_available = bool(available)
+    user.leave_requested_at = user.leave_note = user.leave_until = None  # a status change settles any request
     user.away_note = None if available else ((note or '').strip()[:120] or None)
     user.away_until = None if available or not back_on else datetime.combine(back_on, dt_time.min)
     by = 'themselves' if actor is None or actor.id == user.id else actor.username
@@ -104,16 +111,70 @@ def set_availability(user, available, note=None, back_on=None, actor=None):
     log_audit_event('TECH_AVAILABILITY_CHANGE', 'User', user.id, details, commit=False)
 
     if not available:
-        open_count = Ticket.query.filter(Ticket.technician_id == user.id, Ticket.status.in_(S.ACTIVE)).count()
+        open_count = _open_ticket_count(user)
         if open_count:
             admins = User.query.filter(User.role == UserRole.ADMIN, User.is_active.is_(True)).all()
             for admin in admins:
                 if actor is None or admin.id != actor.id:
                     create_notification(admin.id, f"{user.full_name} is away",
-                                        f"{user.full_name} is {user.availability_label.lower()} and still has "
+                                        f"{user.full_name} is {user.availability_phrase} and still has "
                                         f"{open_count} open ticket(s). Reassign them if they are urgent.",
                                         link=f"/tickets?technician={user.id}&status=active", type='warning',
                                         commit=False)
+
+
+def request_leave(user, note, back_on=None):
+    """A technician asks to be away. Nothing changes until an administrator approves. Caller commits."""
+    user.leave_requested_at = utcnow()
+    user.leave_note = (note or '').strip()[:120] or None
+    user.leave_until = datetime.combine(back_on, dt_time.min) if back_on else None
+    details = f"'{user.username}' asked for leave"
+    if user.leave_note:
+        details += f" ({user.leave_note})"
+    log_audit_event('TECH_LEAVE_REQUESTED', 'User', user.id, details, commit=False)
+
+    until = f" until {back_on.strftime('%b %d')}" if back_on else ''
+    reason = f": {user.leave_note}" if user.leave_note else ''
+    open_count = _open_ticket_count(user)
+    for admin in User.query.filter(User.role == UserRole.ADMIN, User.is_active.is_(True)).all():
+        create_notification(admin.id, f"Leave request: {user.full_name}",
+                            f"{user.full_name} asks to be away{until}{reason}. Open tickets: {open_count}. "
+                            f"Approve or reject it on the dashboard.",
+                            link='/dashboard/admin', type='warning', commit=False)
+
+
+def cancel_leave_request(user):
+    """The technician withdraws a request that is still waiting. Caller commits."""
+    user.leave_requested_at = user.leave_note = user.leave_until = None
+    log_audit_event('TECH_LEAVE_CANCELLED', 'User', user.id, f"'{user.username}' withdrew the leave request",
+                    commit=False)
+
+
+def decide_leave_request(user, approve, admin):
+    """An administrator approves (the technician becomes away) or rejects a leave request. Caller commits."""
+    note = user.leave_note
+    back_on = user.leave_until.date() if user.leave_until else None
+    until = f" until {back_on.strftime('%b %d')}" if back_on else ''
+    if approve:
+        set_availability(user, False, note=note, back_on=back_on, actor=admin)
+        title, kind = 'Leave approved', 'success'
+        message = f"{admin.full_name} approved your leave{until}. You get no new tickets while you are away."
+    else:
+        user.leave_requested_at = user.leave_note = user.leave_until = None
+        title, kind = 'Leave request rejected', 'danger'
+        message = f"{admin.full_name} rejected your leave request{until}. Talk to them if you still need the time off."
+    log_audit_event('TECH_LEAVE_APPROVED' if approve else 'TECH_LEAVE_REJECTED', 'User', user.id,
+                    f"Leave of '{user.username}' {'approved' if approve else 'rejected'} by {admin.username}",
+                    commit=False)
+    create_notification(user.id, title, message, link='/technician/workload', type=kind, commit=False)
+
+
+def pending_leave_requests():
+    """Leave requests waiting for an administrator's decision (shown on the admin dashboard)."""
+    techs = (User.query.filter(User.role == UserRole.TECHNICIAN, User.is_active.is_(True),
+                               User.leave_requested_at.isnot(None))
+             .order_by(User.leave_requested_at).all())
+    return [{'user': tech, 'open_count': _open_ticket_count(tech)} for tech in techs]
 
 
 def away_technicians_with_work():
@@ -121,7 +182,7 @@ def away_technicians_with_work():
     rows = []
     for tech in active_technicians():
         if tech.is_away:
-            count = Ticket.query.filter(Ticket.technician_id == tech.id, Ticket.status.in_(S.ACTIVE)).count()
+            count = _open_ticket_count(tech)
             if count:
                 rows.append({'user': tech, 'open_count': count})
     return rows

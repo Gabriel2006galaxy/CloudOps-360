@@ -13,34 +13,45 @@
 
 {% block content %}
 <div class="row g-4 mb-4">
-  {% if availability_form %}
+  {% if leave_form %}
   <div class="col-lg-6">
-    <div class="card card-premium p-4 h-100 {% if current_user.is_away %}border-danger{% endif %}">
+    <div class="card card-premium p-4 h-100 {% if current_user.is_away %}border-danger{% elif current_user.has_leave_request %}border-warning{% endif %}">
       <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
         <h2 class="h6 fw-bold mb-0"><i class="bi bi-person-check text-info me-2" aria-hidden="true"></i>My status</h2>
         {{ availability_badge(current_user) }}
       </div>
-      <p class="text-muted small mb-3">{% if current_user.is_away %}You receive no auto-assigned tickets while you are away.{% if current_user.away_note %} Note: <em>{{ current_user.away_note }}</em>{% endif %}{% else %}Set yourself <strong>Away</strong> when you are sick or on leave, so the system stops giving you new tickets.{% endif %}</p>
-      <form method="POST" action="{{ url_for('technician.availability') }}" class="row g-2 align-items-end">
-        {{ availability_form.hidden_tag() }}
-        <div class="col-sm-6">
-          <label class="form-label small mb-1" for="{{ availability_form.status.id }}">Status</label>
-          {{ availability_form.status(class='form-select form-select-sm') }}
-        </div>
-        <div class="col-sm-6">
-          <label class="form-label small mb-1" for="{{ availability_form.back_on.id }}">Back on (optional)</label>
-          {{ availability_form.back_on(class='form-control form-control-sm', type='date') }}
-        </div>
-        <div class="col-12">
-          <label class="form-label small mb-1" for="{{ availability_form.away_note.id }}">Note (optional)</label>
-          {{ availability_form.away_note(class='form-control form-control-sm', maxlength=120, placeholder='e.g. Sick leave') }}
-        </div>
-        <div class="col-12"><button type="submit" class="btn btn-sm btn-cyan"><i class="bi bi-save me-1" aria-hidden="true"></i>Save status</button></div>
+      {% if current_user.is_away %}
+      <p class="text-muted small mb-3">Your leave was approved. You receive no auto-assigned tickets while you are away.{% if current_user.away_note %} Reason: <em>{{ current_user.away_note }}</em>{% endif %}</p>
+      <form method="POST" action="{{ url_for('technician.availability') }}">
+        {{ claim_form.hidden_tag() }}
+        <button type="submit" class="btn btn-sm btn-cyan"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>I'm back: set me available</button>
       </form>
+      {% elif current_user.has_leave_request %}
+      <p class="small mb-1"><i class="bi bi-hourglass-split text-warning me-1" aria-hidden="true"></i><strong>Leave request sent</strong>, waiting for an administrator to approve it.</p>
+      <p class="text-muted small mb-3">Reason: <em>{{ current_user.leave_note }}</em>{% if current_user.leave_until %} · back on {{ current_user.leave_until|dateformat }}{% endif %}. You stay available until it is approved.</p>
+      <form method="POST" action="{{ url_for('technician.cancel_leave') }}">
+        {{ claim_form.hidden_tag() }}
+        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancel request</button>
+      </form>
+      {% else %}
+      <p class="text-muted small mb-3">Sick or on leave? Send a <strong>leave request</strong>. When an administrator approves it, you show as <strong>Away</strong> and the system stops giving you new tickets.</p>
+      <form method="POST" action="{{ url_for('technician.leave_request') }}" class="row g-2 align-items-end">
+        {{ leave_form.hidden_tag() }}
+        <div class="col-sm-7">
+          <label class="form-label small mb-1" for="{{ leave_form.away_note.id }}">Reason</label>
+          {{ leave_form.away_note(class='form-control form-control-sm', maxlength=120, placeholder='e.g. Sick leave', required=True) }}
+        </div>
+        <div class="col-sm-5">
+          <label class="form-label small mb-1" for="{{ leave_form.back_on.id }}">Back on (optional)</label>
+          {{ leave_form.back_on(class='form-control form-control-sm', type='date') }}
+        </div>
+        <div class="col-12"><button type="submit" class="btn btn-sm btn-cyan"><i class="bi bi-send me-1" aria-hidden="true"></i>Send leave request</button></div>
+      </form>
+      {% endif %}
     </div>
   </div>
   {% endif %}
-  <div class="col-lg-{{ 6 if availability_form else 12 }}">
+  <div class="col-lg-{{ 6 if leave_form else 12 }}">
     <div class="card card-premium p-4 h-100">
       <h2 class="h6 fw-bold mb-3"><i class="bi bi-shuffle text-info me-2" aria-hidden="true"></i>How tickets reach you</h2>
       {% if auto_assign.enabled %}

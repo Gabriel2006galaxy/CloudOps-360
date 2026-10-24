@@ -8,7 +8,7 @@ from app.models import (
     AuditLog, Ticket, TicketCategory, TicketPriority, TicketStatus, TicketStatusHistory, User, UserRole,
     format_duration, utcnow,
 )
-from app.services.assignment import away_technicians_with_work
+from app.services.assignment import away_technicians_with_work, pending_leave_requests
 from app.services.settings import get_auto_assign_config
 from app.services.sla import compute_sla_metrics
 
@@ -191,6 +191,7 @@ def admin_dashboard():
         'sla': compute_sla_metrics(query.all()),
         'ratings': rating_summary(query),
         'away_with_work': away_technicians_with_work(),
+        'leave_requests': pending_leave_requests(),
         'auto_assign_enabled': get_auto_assign_config().enabled,
         'recent_audits': AuditLog.query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(8).all(),
     }

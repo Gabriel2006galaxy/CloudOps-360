@@ -8,8 +8,8 @@
 | | |
 | :--- | :--- |
 | **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
-| **Tests** | 144 pytest tests — passing on SQLite **and** MySQL 8.0 |
-| **Status** | Application complete and verified locally (144 tests). **All three labs are verified live on AWS** (own AWS account, Mumbai, since 2026-10-24): EC2 + Nginx + Gunicorn, Amazon RDS for MySQL (private, encrypted, TLS), Amazon EFS (encrypted, TLS), IAM role, Secrets Manager and HTTPS; `verify_deployment.sh` all PASS — see [What still needs your action](#11-what-still-needs-your-action-aws). |
+| **Tests** | 145 pytest tests — passing on SQLite **and** MySQL 8.0 |
+| **Status** | Application complete and verified locally (145 tests). **All three labs are verified live on AWS** (own AWS account, Mumbai, since 2026-10-24): EC2 + Nginx + Gunicorn, Amazon RDS for MySQL (private, encrypted, TLS), Amazon EFS (encrypted, TLS), IAM role, Secrets Manager and HTTPS; `verify_deployment.sh` all PASS — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
 Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
 [AWS deployment guide](docs/aws_deployment.md) · [Architecture](docs/architecture.md) ·
@@ -27,7 +27,7 @@ Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
 | Report incidents with screenshots/logs | Receive tickets automatically (auto-assignment by workload and skills) | Everything technicians can do, on every ticket |
 | See only their own tickets, public comments and status history | Claim tickets from the queue when every technician is free | Manage users, roles, account status and technician skills |
 | Comment, upload files, confirm or reopen a resolution | Change status/priority, public replies, **private internal notes** | Assign / reassign tickets (only needed when nobody can take one), manage categories |
-| Rate the support 1–5 stars after closing; personal dashboard and notifications | Set own status Available / Away; workload, critical and overdue views; customer rating | Configure SLA targets and auto-assignment, analytics, audit trail (CSV export) |
+| Rate the support 1–5 stars after closing; personal dashboard and notifications | Ask for leave (shown as Away once an admin approves); workload, critical and overdue views; customer rating | Approve or reject technicians' leave; configure SLA targets and auto-assignment, analytics, audit trail (CSV export) |
 
 **Tickets** — reference `INC-YYYY-00001`, title, description, category, priority (Low → Critical),
 creator, assignee, affected system, department, attachments, resolution summary, timestamps.
@@ -47,9 +47,10 @@ High 2 h, Medium 4 h, Low 12 h). The reason is written to the ticket history and
 Every available technician is notified about each new ticket (with how many tickets are waiting in the
 queue); administrators are only asked to act when nobody can take a ticket ("Needs assignment").
 It runs on its own with sensible defaults; admins can change it under **Administration →
-Auto-Assignment** (switch on/off, limits) and set technician skills on the user's edit page. Technicians mark themselves **Available/Away**
-(with note and "back on" date, after which they return automatically); admins are warned about
-away technicians who still hold open tickets. CLI for cron: `flask auto-assign [--now]`.
+Auto-Assignment** (switch on/off, limits) and set technician skills on the user's edit page. Technicians **ask for leave**
+(reason and optional "back on" date); an admin **approves or rejects** it on the dashboard, and only an
+approved request makes them **Away** (they return automatically on the back-on date, or press "I'm back").
+Admins are warned about away technicians who still hold open tickets. CLI for cron: `flask auto-assign [--now]`.
 
 **Customer satisfaction (CSAT)** — after a resolved ticket is closed, the reporter rates the support
 1–5 stars with an optional comment (once). Ratings appear on the ticket, notify the technician, and
@@ -217,7 +218,7 @@ powershell -ExecutionPolicy Bypass -File scripts\run_tests_mysql.ps1 -q      # s
 | `test_dashboards.py` | dashboard numbers equal database counts, trends, empty states |
 | `test_security.py` | CSRF, headers, cookies, secret exposure, fail-closed production config, SQL-injection inputs |
 | `test_pages.py` | crawls every reachable page for each role (no server errors, no dead links) |
-| `test_assignment.py` | auto-assignment rules (least busy, specialists, away, maximum, queue wait), team notifications, settings limits 1–50, availability, CSAT ratings |
+| `test_assignment.py` | auto-assignment rules (least busy, specialists, away, maximum, queue wait), team notifications, settings limits 1–50, leave requests approved by an admin, CSAT ratings |
 
 The suite ignores your local `.env` (`CLOUDOPS_SKIP_DOTENV=1`) so results do not depend on local settings.
 

@@ -121,6 +121,10 @@ class User(UserMixin, db.Model):
     is_available = db.Column(db.Boolean, default=True, server_default=sql_true(), nullable=False)
     away_note = db.Column(db.String(120), nullable=True)
     away_until = db.Column(db.DateTime, nullable=True)  # UTC; available again from this moment
+    # Leave request: a technician asks to be away, an administrator approves or rejects it
+    leave_requested_at = db.Column(db.DateTime, nullable=True)
+    leave_note = db.Column(db.String(120), nullable=True)
+    leave_until = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     skills = db.relationship('TicketCategory', secondary=technician_skills, lazy='selectin',
@@ -171,6 +175,24 @@ class User(UserMixin, db.Model):
         label = 'Away'
         if self.away_until:
             label += f" until {as_utc(self.away_until).strftime('%b %d')}"
+        return label
+
+    @property
+    def availability_phrase(self):
+        """Label for use inside a sentence: 'available', 'away until Oct 28'."""
+        label = self.availability_label
+        return label[0].lower() + label[1:]
+
+    @property
+    def has_leave_request(self):
+        """A leave request is waiting for an administrator's decision."""
+        return self.leave_requested_at is not None
+
+    @property
+    def leave_request_label(self):
+        label = 'Leave requested'
+        if self.leave_until:
+            label += f" until {as_utc(self.leave_until).strftime('%b %d')}"
         return label
 
     @property

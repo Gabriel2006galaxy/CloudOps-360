@@ -14,7 +14,8 @@ from app.extensions import db
 from app.models import AuditLog, SLAPolicy, Ticket, TicketCategory, TicketStatus, User, UserRole
 from app.services import metrics
 from app.services.assignment import (
-    away_technicians_with_work, format_minutes, set_availability, technician_overview,
+    away_technicians_with_work, decide_leave_request, format_minutes, pending_leave_requests, set_availability,
+    technician_overview,
 )
 from app.services.audit import log_audit_event
 from app.services.settings import get_auto_assign_config, save_auto_assign_config
@@ -186,6 +187,29 @@ def technician_settings(user_id):
     return redirect(url_for('admin.edit_user', user_id=user.id))
 
 
+@admin_bp.route('/users/<int:user_id>/leave-request', methods=['POST'])
+@login_required
+@admin_required
+def decide_leave(user_id):
+    """Approve or reject a technician's leave request (approval marks them away)."""
+    user = _get_or_404(User, user_id)
+    decision = request.form.get('decision')
+    if decision not in ('approve', 'reject'):
+        abort(400)
+    if not (user.is_technician and user.has_leave_request):
+        flash('There is no leave request waiting for this user.', 'warning')
+    else:
+        decide_leave_request(user, decision == 'approve', current_user)
+        db.session.commit()
+        if decision == 'approve':
+            flash(f"Leave approved: {user.full_name} is now {user.availability_phrase} "
+                  f"and gets no new tickets.", 'success')
+        else:
+            flash(f"Leave request of {user.full_name} rejected. They stay available.", 'info')
+    return redirect(request.referrer if request.referrer and request.referrer.startswith(request.host_url)
+                    else url_for('dashboard.admin'))
+
+
 @admin_bp.route('/users/<int:user_id>/toggle-status', methods=['POST'])
 @login_required
 @admin_required
@@ -338,7 +362,7 @@ def auto_assign():
              .order_by(Ticket.created_at).all())
     return render_template(
         'admin/auto_assign.html', form=form, config=config, overview=technician_overview(config),
-        away_with_work=away_technicians_with_work(), queue=queue,
+        away_with_work=away_technicians_with_work(), leave_requests=pending_leave_requests(), queue=queue,
         wait_labels={p: format_minutes(m) for p, m in config.wait_minutes.items()},
     ), 400 if request.method == 'POST' else 200
 
