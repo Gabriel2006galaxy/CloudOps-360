@@ -15,7 +15,8 @@
       "Principal": { "AWS": "arn:aws:iam::ACCOUNT_ID:role/CloudOps360-EC2-Role" },
       "Action": [
         "elasticfilesystem:ClientMount",
-        "elasticfilesystem:ClientWrite"
+        "elasticfilesystem:ClientWrite",
+        "elasticfilesystem:ClientRootAccess"
       ],
       "Resource": "arn:aws:elasticfilesystem:REGION:ACCOUNT_ID:file-system/FS_ID",
       "Condition": { "Bool": { "elasticfilesystem:AccessedViaMountTarget": "true" } }

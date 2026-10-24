@@ -72,6 +72,20 @@ Open `http://<public-ip>/` in a browser. Plain HTTP is expected until Lab 3, so 
 
 ## 2. Lab 2 — Amazon RDS for MySQL and Amazon EFS
 
+> **Fast path (own AWS account, about 20 minutes, mostly waiting).** Two scripts do everything in
+> §2 and §3 for a server launched with the User data:
+> 1. **AWS CloudShell** (same region as the instance):
+>    `curl -fsSL https://raw.githubusercontent.com/Gabriel2006galaxy/CloudOps-360/main/infrastructure/aws/cloudshell_lab2_lab3.sh | bash`
+>    — security groups, encrypted private RDS for MySQL 8.4, encrypted EFS + mount targets, IAM role
+>    attached to the instance, EFS policy (TLS + role only) and the Secrets Manager secrets.
+>    Safe to re-run if CloudShell times out while RDS is being created.
+> 2. **On the instance** (EC2 Instance Connect), the command printed at the end of step 1:
+>    `curl -fsSL .../server_lab2_lab3.sh -o /tmp/labs.sh && sudo bash /tmp/labs.sh <efs-id>`
+>    — least-privilege DB user (REQUIRE SSL), settings from Secrets Manager, EFS mount, tables + demo
+>    data on RDS, HTTPS, MariaDB stopped, and the `verify_deployment.sh` report.
+>
+> The manual steps below explain what the scripts do.
+
 ### 2.1 RDS for MySQL
 RDS console → Create database:
 * Engine **MySQL 8.0**, template **Free tier**, `db.t3.micro`/`db.t4g.micro`, 20 GB gp2/gp3.
