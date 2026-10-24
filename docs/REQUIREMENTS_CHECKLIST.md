@@ -23,7 +23,7 @@ and 375 px in dark and light themes.
 | Flask + Blueprints + Jinja2, app factory, config classes | ✅ | `app/__init__.py`, `config.py` |
 | MySQL + Flask-SQLAlchemy + Flask-Migrate | ✅ | migrations verified on MySQL 8.0.43 |
 | Flask-Login, Flask-WTF/WTForms, Werkzeug hashing | ✅ | `test_auth.py` |
-| EC2 Linux, Nginx + Gunicorn | 🟡 | `infrastructure/aws/ec2_bootstrap.sh`, `cloudops360.service`, `nginx*.conf` (syntax-checked, not run on EC2) |
+| EC2 Linux, Nginx + Gunicorn | ☑️ | Lab 1 verified live in the AWS Academy Sandbox (Oct 2026): `http://<public-ip>` served by Nginx → Gunicorn, `/health` OK, MariaDB on the instance; installed by `user_data_demo.sh` → `ec2_bootstrap.sh`, `lab1_mariadb_on_ec2.sh` |
 | Amazon RDS for MySQL | 🟡 | `docs/aws_deployment.md §2.1`, `rds_mysql_setup.sql` |
 | Amazon EFS | 🟡 | `efs_mount_setup.sh`; storage abstraction ✅ locally |
 | IAM instance role, least privilege, Secrets Manager | 🟡 | `iam_*.json`; secret resolution code ✅ (fail-closed tests) |

@@ -54,14 +54,21 @@ sequenceDiagram
         F-->>B: 400 form with error, nothing saved
     else valid
         S->>S: atomic rename to YYYY/MM/uuid.ext (0640)
-        F->>DB: INSERT ticket → id → reference INC-YYYY-00042<br/>SLA due dates from sla_policies<br/>status history, attachment row, audit, notifications
+        F->>DB: INSERT ticket → id → reference INC-YYYY-00042<br/>SLA due dates from sla_policies<br/>status history, attachment row, audit
+        F->>DB: auto-assign: available technicians below the maximum,<br/>specialists first, lightest workload → conditional UPDATE<br/>(or leave in queue when every technician is free)
+        F->>DB: notifications: assigned technician, every other available technician<br/>(with queue count), admins ("Needs assignment" only if nobody can take it)
         F->>DB: COMMIT (one transaction)
         F-->>B: 302 /tickets/INC-YYYY-00042
     end
 ```
 
 If the database commit fails after the file was stored, the file is deleted (no orphans).
-Code: `app/tickets/routes.py::create`, `app/services/storage.py`. Tests: `tests/test_tickets.py`, `tests/test_attachments.py`.
+Code: `app/tickets/routes.py::create`, `app/services/storage.py`, `app/services/assignment.py`. Tests: `tests/test_tickets.py`, `tests/test_attachments.py`, `tests/test_assignment.py`.
+
+Tickets left in the queue are assigned on their own after a per-priority wait (Critical 30 min, High 2 h,
+Medium 4 h, Low 12 h by default): web requests run the check at most once a minute per worker, and
+`flask auto-assign` can run it from cron. The conditional UPDATE (`WHERE technician_id IS NULL AND
+status = 'Open'`) makes it safe when several Gunicorn workers or EC2 instances run it at once.
 
 ## 3. Authorized download
 
@@ -89,7 +96,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> Open: employee reports
-    Open --> Assigned: technician claims / admin assigns
+    Open --> Assigned: auto-assigned (system) / technician claims / admin assigns
     Assigned --> InProgress: assigned technician starts work
     Assigned --> Open: admin returns to queue
     InProgress --> Resolved: technician (resolution summary ≥ 10 chars required)

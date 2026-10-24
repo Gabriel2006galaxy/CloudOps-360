@@ -5,8 +5,10 @@ resources. Previous-lab functionality keeps working. Detailed AWS steps: `docs/a
 
 Prepare before every demo:
 * Local: `flask seed-db` gives demo accounts (`admin`, `tech_sarah`, `tech_marcus`, `emp_jordan`, `emp_elena`).
-* AWS: demo accounts are **not** seeded in production. Create users with `flask create-admin`, then
-  add one technician and two employees in *Users & Roles*.
+* AWS class demo: the 2-line User data (`user_data_demo.sh`, see `docs/CHEAT_SHEET.md`) installs the
+  latest code **and** seeds the demo accounts with one-click sign-in buttons.
+* Real (non-demo) server: demo accounts are **not** seeded in production. Create users with
+  `flask create-admin`, then add technicians and employees in *Users & Roles*.
 
 Tick each box only after you have seen it work.
 
@@ -24,9 +26,9 @@ Setup: `ec2_bootstrap.sh` → `lab1_mariadb_on_ec2.sh` → `flask create-admin` 
 | ☐ | Responsive UI | Resize / phone: sidebar collapses to a menu; light/dark toggle persists |
 | ☐ | Authentication | Wrong password → error; 5 wrong attempts → "Too many failed sign-in attempts" (429) |
 | ☐ | Role dashboards | Sign in as admin, technician, employee → three different dashboards |
-| ☐ | Create ticket | Employee: *Report Incident* → reference `INC-2026-000NN`, SLA deadline shown |
+| ☐ | Create ticket | Employee: *Report Incident* → reference `INC-2026-000NN`, SLA deadline shown, automatically assigned to the least busy technician (reason in *Activity history*) |
 | ☐ | Listing & filters | *My Tickets*: search, status/priority/category/date filters, sort by column, pagination |
-| ☐ | Status updates | Technician: *Claim* → *Start Work* → *Resolve* (summary required) → employee *Confirm & Close* |
+| ☐ | Status updates | Technician (from the notification): *Start Work* → *Resolve* (summary required) → employee *Confirm & Close* → star rating |
 | ☐ | Persistence | Refresh; `sudo systemctl restart cloudops360`; reboot the instance → tickets still there |
 | ☐ | Data in MySQL | `mysql -u cloudops_user -p -h 127.0.0.1 cloudops360 -e "SELECT reference_id,status FROM tickets;"` |
 | ☐ | Nginx + Gunicorn | `systemctl status nginx cloudops360`; `ss -ltn` shows Gunicorn only on 127.0.0.1:8000 |

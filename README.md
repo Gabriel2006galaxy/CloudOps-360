@@ -9,7 +9,7 @@
 | :--- | :--- |
 | **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
 | **Tests** | 144 pytest tests — passing on SQLite **and** MySQL 8.0 |
-| **Status** | Application complete and verified locally. AWS deployment is scripted and documented but **not yet verified on AWS** — see [What still needs your action](#11-what-still-needs-your-action-aws). |
+| **Status** | Application complete and verified locally (144 tests). **Lab 1 is verified live on AWS** (AWS Academy Sandbox: EC2 + Nginx + Gunicorn + MariaDB, installed by the 2-line User data script). Lab 2/3 (RDS, EFS, IAM, Secrets Manager, HTTPS) are scripted and documented but **not yet verified on AWS** — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
 Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
 [AWS deployment guide](docs/aws_deployment.md) · [Architecture](docs/architecture.md) ·
@@ -24,10 +24,10 @@ Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
 
 | Employee | Support Technician | Administrator |
 | :--- | :--- | :--- |
-| Report incidents with screenshots/logs | Work tickets assigned to them | Everything technicians can do, on every ticket |
-| See only their own tickets, public comments and status history | Claim tickets from the unassigned queue | Manage users, roles and account status |
-| Comment, upload files, confirm or reopen a resolution | Change status/priority, public replies, **private internal notes** | Assign / reassign tickets, manage categories |
-| Personal dashboard and notifications | Workload, critical and overdue views, resolution trend | Configure SLA targets, analytics, audit trail (CSV export) |
+| Report incidents with screenshots/logs | Receive tickets automatically (auto-assignment by workload and skills) | Everything technicians can do, on every ticket |
+| See only their own tickets, public comments and status history | Claim tickets from the queue when every technician is free | Manage users, roles, account status and technician skills |
+| Comment, upload files, confirm or reopen a resolution | Change status/priority, public replies, **private internal notes** | Assign / reassign tickets (only needed when nobody can take one), manage categories |
+| Rate the support 1–5 stars after closing; personal dashboard and notifications | Set own status Available / Away; workload, critical and overdue views; customer rating | Configure SLA targets and auto-assignment, analytics, audit trail (CSV export) |
 
 **Tickets** — reference `INC-YYYY-00001`, title, description, category, priority (Low → Critical),
 creator, assignee, affected system, department, attachments, resolution summary, timestamps.
@@ -227,7 +227,7 @@ Full guide: **[docs/aws_deployment.md](docs/aws_deployment.md)**.
 
 | Lab | What you do | Scripts |
 | :--- | :--- | :--- |
-| 1 | EC2 (Amazon Linux 2023) + Nginx + Gunicorn + MySQL-compatible DB on the instance | `ec2_bootstrap.sh`, `lab1_mariadb_on_ec2.sh` |
+| 1 ✅ verified live | EC2 (Amazon Linux 2023) + Nginx + Gunicorn + MySQL-compatible DB on the instance — class demo: paste the 2-line User data (`docs/CHEAT_SHEET.md`) | `user_data_demo.sh` (runs `ec2_bootstrap.sh`, `lab1_mariadb_on_ec2.sh`, demo data) |
 | 2 | Amazon RDS for MySQL (private) + Amazon EFS (TLS mount) | `rds_mysql_setup.sql`, `efs_mount_setup.sh` |
 | 3 | IAM role, Secrets Manager, HTTPS, encryption, private networking, verification | `iam_*.json`, `efs_file_system_policy.json`, `tls_self_signed.sh`, `nginx_https.conf`, `verify_deployment.sh` |
 
@@ -256,10 +256,11 @@ Updates: `sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main`.
 
 ## 11. What still needs your action (AWS)
 
-These require your AWS account and were **not** performed or verified from this repository:
+Lab 1 (EC2 + Nginx + Gunicorn + MariaDB on the instance) **was done and verified live** in the AWS
+Academy Sandbox with the User data script. Still to do (need AWS, not verified from this repository):
 
-1. Create the VPC/security groups, EC2 instance, RDS instance and EFS file system (console steps in the guide).
-2. Run the bootstrap/mount scripts on EC2; create the first admin with `flask create-admin`.
+1. Create the RDS instance and EFS file system with their security groups (console steps in the guide).
+2. Run the mount scripts on EC2; for a real (non-demo) server create the first admin with `flask create-admin`.
 3. Create the IAM role/instance profile and the two Secrets Manager secrets; switch the env file to `DB_SECRET_NAME`/`APP_SECRET_NAME`.
 4. Enable HTTPS (certbot with a domain, or `tls_self_signed.sh`) and set `SESSION_COOKIE_SECURE=true`.
 5. Run `verify_deployment.sh` and the CloudShell commands, and keep the output as evidence.

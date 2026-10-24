@@ -1,8 +1,9 @@
 # CloudOps 360 — AWS Deployment Guide (EC2 · RDS · EFS · IAM · Secrets Manager · HTTPS)
 
-> **Important — verification status.** These steps and the scripts in `infrastructure/aws/` were
-> written and syntax-checked (`bash -n`, JSON validation) but have **not been run against an AWS
-> account** from this repository. Treat every security property as *unverified* until
+> **Important — verification status.** **Lab 1 (§1) was run and verified live** in the AWS Academy
+> Sandbox (EC2 + Nginx + Gunicorn + MariaDB, installed by `user_data_demo.sh`). The Lab 2/3 steps
+> (RDS, EFS, IAM, Secrets Manager, HTTPS) were written and syntax-checked (`bash -n`, JSON
+> validation) but have **not been run on AWS yet**. Treat every security property as *unverified* until
 > `verify_deployment.sh` and the CloudShell commands at the end of this guide confirm it on your
 > resources. Creating these resources may incur charges; see [Cost control](#9-cost-control-and-cleanup).
 

@@ -4,7 +4,8 @@ This is the architecture the scripts in `infrastructure/aws/` deploy. It is size
 account (free-tier friendly: no NAT Gateway, no load balancer, single-AZ RDS). An optional
 production extension is described at the end.
 
-> **Status:** designed and scripted, **not yet deployed or verified on AWS** from this repository.
+> **Status:** Lab 1 (single EC2 instance: Nginx + Gunicorn + MariaDB) **deployed and verified live** in the
+> AWS Academy Sandbox. The RDS / EFS / IAM / Secrets Manager parts are designed and scripted, **not yet verified on AWS**.
 > Run `infrastructure/aws/verify_deployment.sh` on your instance to collect evidence for each claim.
 
 ## 1. Lab architecture (Labs 1–3)
@@ -44,7 +45,7 @@ flowchart TB
 
 | Data | Location | Notes |
 | :--- | :--- | :--- |
-| Users, tickets, comments, status history, notifications, SLA policies, audit logs, login attempts | Amazon RDS for MySQL (`cloudops360` database) | Lab 1 uses MariaDB on the instance; schema is identical (Alembic migrations) |
+| Users, tickets, comments, status history, notifications, SLA policies, audit logs, login attempts, technician skills, settings, ratings | Amazon RDS for MySQL (`cloudops360` database) | Lab 1 uses MariaDB on the instance; schema is identical (Alembic migrations) |
 | Attachment metadata (owner, ticket, size, MIME type, SHA-256, storage key) | RDS `attachments` table | |
 | Attachment bytes | Amazon EFS `/mnt/efs/cloudops360-attachments/YYYY/MM/<uuid>.<ext>` | Lab 1: `/var/lib/cloudops360/uploads` |
 | Flask `SECRET_KEY`, DB credentials | Secrets Manager (Lab 3); root-owned `0640` env file before that | Never in Git, never in responses or logs |
