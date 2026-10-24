@@ -100,7 +100,10 @@ if ss -ltn | grep -q ':443 '; then
 else
     info "no listener on :443 - HTTPS not enabled yet (Lab 3)"
 fi
-curl -sI http://127.0.0.1/auth/login | grep -qi '^x-frame-options: deny' && pass "security headers present" || fail "security headers missing"
+# Once HTTPS is on, plain HTTP only answers with a redirect, so check the HTTPS page
+HDR_URL=http://127.0.0.1/auth/login
+ss -ltn | grep -q ':443 ' && HDR_URL=https://127.0.0.1/auth/login
+curl -skI "$HDR_URL" | grep -qi '^x-frame-options: deny' && pass "security headers present ($HDR_URL)" || fail "security headers missing ($HDR_URL)"
 
 # --- Network exposure from this host's point of view ---
 ss -ltn | awk 'NR>1 {print $4}' | grep -E ':(3306|2049|8000)$' | grep -v -E '^(127\.0\.0\.1|\[::1\]):' \
