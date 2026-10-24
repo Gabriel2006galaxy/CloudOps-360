@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import priority_badge, status_badge, sla_cell %}
+{% from "_macros.html" import priority_badge, status_badge, sla_cell, stars, availability_badge %}
 {% block title %}{{ ticket.reference_id }}{% endblock %}
 
 {% block page_header %}
@@ -77,6 +77,35 @@
         {% if ticket.resolution_met_sla == False %}<span class="badge bg-warning text-dark ms-1">SLA missed</span>{% elif ticket.resolution_met_sla %}<span class="badge bg-success ms-1">Within SLA</span>{% endif %}
       </div>
       {% endif %}
+    </section>
+    {% endif %}
+
+    {% if can.rate %}
+    <section class="card card-premium p-4 mb-4 border-warning" id="rating" aria-labelledby="rating-heading">
+      <h2 id="rating-heading" class="h6 fw-bold mb-1"><i class="bi bi-star-fill text-warning me-2" aria-hidden="true"></i>How was the support you received?</h2>
+      <p class="text-muted small mb-3">Your rating helps the IT team improve. You can rate once.</p>
+      <form method="POST" action="{{ url_for('tickets.rate', reference_id=ticket.reference_id) }}">
+        {{ rating_form.hidden_tag() }}
+        <fieldset class="mb-2">
+          <legend class="visually-hidden">Rating from 1 to 5 stars</legend>
+          <div class="star-rating">
+            {% for value, label in rating_form.rating.choices %}
+            <input type="radio" id="star{{ value }}" name="rating" value="{{ value }}" required>
+            <label for="star{{ value }}" title="{{ value }} star{{ 's' if value != 1 }}">★<span class="visually-hidden">{{ value }} star{{ 's' if value != 1 }}</span></label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <label class="form-label small fw-semibold" for="{{ rating_form.comment.id }}">{{ rating_form.comment.label.text }}</label>
+        {{ rating_form.comment(class='form-control mb-2', rows=2, maxlength=500, placeholder='What went well? What could be better?') }}
+        <button type="submit" class="btn btn-cyan btn-sm"><i class="bi bi-send me-1" aria-hidden="true"></i>Submit rating</button>
+      </form>
+    </section>
+    {% elif ticket.satisfaction_rating %}
+    <section class="card card-premium p-4 mb-4" id="rating" aria-labelledby="rating-heading">
+      <h2 id="rating-heading" class="h6 fw-bold mb-2"><i class="bi bi-star-fill text-warning me-2" aria-hidden="true"></i>Customer satisfaction</h2>
+      <div class="fs-5">{{ stars(ticket.satisfaction_rating) }}</div>
+      {% if ticket.satisfaction_comment %}<div class="small fst-italic mt-2" style="white-space: pre-wrap;">“{{ ticket.satisfaction_comment }}”</div>{% endif %}
+      <div class="text-muted small mt-1">Rated by {{ ticket.creator.full_name }} · {{ ticket.rated_at|datetimeformat }}</div>
     </section>
     {% endif %}
 
@@ -189,6 +218,7 @@
         <dt class="text-muted fw-normal">Assigned technician</dt>
         <dd>
           {% if ticket.technician %}<span class="fw-semibold text-info"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>{{ ticket.technician.full_name }}</span>
+          {% if ticket.technician.is_away and current_user.is_staff %} {{ availability_badge(ticket.technician) }}{% endif %}
           {% else %}<span class="badge bg-secondary-subtle text-muted border">Unassigned</span>{% endif %}
           {% if can.assign %}
           <form method="POST" action="{{ url_for('tickets.assign', reference_id=ticket.reference_id) }}" class="d-flex gap-1 mt-2">
@@ -255,8 +285,8 @@
           {% if e.kind == 'status' %}
             <span class="timeline-dot"><i class="bi bi-arrow-right" aria-hidden="true"></i></span>
             <div class="fw-semibold">{{ e.item.old_status }} → <span class="text-info">{{ e.item.new_status }}</span></div>
-            <div class="text-muted" style="font-size: 0.75rem;">{{ e.item.changed_by.full_name }} · {{ e.at|datetimeformat('%b %d, %H:%M') }}</div>
-            {% if e.item.notes %}<div class="text-secondary fst-italic mt-1" style="font-size: 0.78rem;">{{ e.item.notes|truncate(160) }}</div>{% endif %}
+            <div class="text-muted" style="font-size: 0.75rem;">{% if not e.item.changed_by %}<i class="bi bi-robot me-1" aria-hidden="true"></i>{% endif %}{{ e.item.actor_name }} · {{ e.at|datetimeformat('%b %d, %H:%M') }}</div>
+            {% if e.item.notes %}<div class="text-secondary fst-italic mt-1" style="font-size: 0.78rem;">{{ e.item.notes|truncate(240) }}</div>{% endif %}
           {% elif e.kind == 'attachment' %}
             <span class="timeline-dot dot-attachment"><i class="bi bi-paperclip" aria-hidden="true"></i></span>
             <div class="fw-semibold">File uploaded</div>

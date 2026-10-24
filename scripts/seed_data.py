@@ -82,6 +82,20 @@ DEMO_TICKETS = [
      0, TicketPriority.HIGH, TicketStatus.CLOSED, 'emp_elena', 'tech_sarah', 'ec2-batch-asg', 240, 9),
 ]
 
+# Technician specialities (category indexes) used by auto-assignment
+DEMO_SKILLS = {
+    'tech_sarah': [0, 3, 5],   # Cloud Infrastructure, Database & Storage, End-User Computing
+    'tech_marcus': [1, 2, 4],  # Network, Identity & Access, Security & Compliance
+}
+
+# Customer satisfaction ratings on closed demo tickets: title -> (stars, comment)
+DEMO_RATINGS = {
+    "Laptop cannot connect to corporate Wi-Fi": (5, "Fixed quickly and explained what went wrong. Thank you!"),
+    "MFA device lost - need reset": (4, "Good help; the identity check took a little while."),
+    "Outlook keeps asking for password": (5, None),
+    "Auto scaling group not launching new instances": (4, "Solved. A faster first update would be nice next time."),
+}
+
 
 def seed_reference_data():
     """Categories and SLA policies (idempotent)."""
@@ -172,8 +186,21 @@ def _seed_tickets(categories, users):
                                    content=f"[Internal] Checked CloudWatch metrics and recent change log for {system}. "
                                            "Suspect a configuration drift from last deploy; do not share until confirmed.",
                                    created_at=created + total * 0.3))
+
+        if title in DEMO_RATINGS and ticket.closed_at:
+            ticket.satisfaction_rating, ticket.satisfaction_comment = DEMO_RATINGS[title]
+            ticket.rated_at = ticket.closed_at + timedelta(hours=1)
     db.session.add(AuditLog(user_id=users['admin'].id, action='SYSTEM_SEED_INITIALIZED', entity_type='System',
                             entity_id='seed', details='Development seed data created via flask seed-db', created_at=now))
+    db.session.commit()
+
+
+def _seed_skills(categories, users):
+    """Gives the demo technicians their specialities (only if they have none yet)."""
+    for username, indexes in DEMO_SKILLS.items():
+        tech = users.get(username)
+        if tech and not tech.skills:
+            tech.skills = [categories[i] for i in indexes]
     db.session.commit()
 
 
@@ -181,6 +208,7 @@ def seed_database(with_demo_tickets=True):
     """Reference data + development demo users (+ demo incidents when the table is empty)."""
     categories = seed_reference_data()
     users = _seed_users()
+    _seed_skills(categories, users)
     if with_demo_tickets and Ticket.query.count() == 0:
         _seed_tickets(categories, users)
         print(f"[Seed] {len(DEMO_TICKETS)} demo incidents created.")

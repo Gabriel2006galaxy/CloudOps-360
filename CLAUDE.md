@@ -10,8 +10,9 @@ Student AWS Cloud Computing Lab project (Flask + MySQL + Bootstrap/Chart.js, thr
 - `docs/aws_deployment.md` — Lab 1/2/3 AWS guide; `infrastructure/aws/` — all deployment scripts.
 - `demo_files/` — screenshot + log (accepted uploads) and `fake.png` (rejected on purpose).
 
-## State of the project (as of 2026-10-20)
-- App complete; full pytest suite passes locally on SQLite and MySQL 8.0 (`.venv\Scripts\python -m pytest -q`).
+## State of the project (as of 2026-10-24)
+- App complete; 143 pytest tests pass locally on SQLite and MySQL 8.0 (`.venv\Scripts\python -m pytest -q`).
+- Added 2026-10-24: auto-assignment (ON by default; least busy available technician, specialists first, weighted points, max open per technician default 10 / admin 1–50, queue + claim when every technician is free, per-priority wait then auto-assign, "Run auto-assign now"), technician Available/Away status, technician skills, CSAT star ratings. Migration `c3f1a9d27e64`; 12 tables.
 - Local dev: Windows, MySQL80 service, `.env` created by `scripts/setup_local_mysql.ps1` (gitignored), run with `.venv\Scripts\python run.py`.
 - GitHub: https://github.com/Gabriel2006galaxy/CloudOps-360 (branch `main`). This machine has no credential helper: pushes go through `git push origin main` in a terminal where Gabriel types his username and a GitHub access token himself — never handle the token.
 - **Lab 1 is done on AWS** and verified live: EC2 Amazon Linux 2023, t3.micro, Nginx + Gunicorn, MariaDB on the instance.
@@ -32,4 +33,4 @@ Student AWS Cloud Computing Lab project (Flask + MySQL + Bootstrap/Chart.js, thr
 ## Possible next work
 - Lab 2: RDS + EFS (`docs/aws_deployment.md` §2) — in the Sandbox these are deleted each session too; consider a CloudFormation template if allowed.
 - Lab 3: HTTPS (`tls_self_signed.sh`, `nginx_https.conf`), encryption, audit demos; IAM/Secrets Manager depend on Sandbox permissions.
-- Feature ideas Gabriel liked: star rating (CSAT), auto-assignment, SLA escalation, email alerts.
+- Feature ideas Gabriel liked and not built yet: SLA escalation, email alerts, two-step login (OTP).

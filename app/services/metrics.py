@@ -8,6 +8,8 @@ from app.models import (
     AuditLog, Ticket, TicketCategory, TicketPriority, TicketStatus, TicketStatusHistory, User, UserRole,
     format_duration, utcnow,
 )
+from app.services.assignment import away_technicians_with_work
+from app.services.settings import get_auto_assign_config
 from app.services.sla import compute_sla_metrics
 
 
@@ -65,8 +67,23 @@ def daily_trend(query, days=14):
     return {'labels': labels, 'created': created_series, 'resolved': resolved_series}
 
 
+def rating_summary(query=None):
+    """Customer satisfaction: average stars, number of ratings and 5..1 distribution."""
+    query = query if query is not None else Ticket.query
+    rows = (query.filter(Ticket.satisfaction_rating.isnot(None))
+            .with_entities(Ticket.satisfaction_rating, func.count(Ticket.id))
+            .group_by(Ticket.satisfaction_rating).all())
+    distribution = {stars: 0 for stars in range(5, 0, -1)}
+    for stars, count in rows:
+        distribution[int(stars)] = count
+    total = sum(distribution.values())
+    average = round(sum(s * c for s, c in distribution.items()) / total, 1) if total else None
+    return {'avg': average, 'count': total, 'distribution': distribution}
+
+
 def technician_workload():
-    """Active, overdue and resolved counts plus average resolution time per staff member."""
+    """Active, overdue and resolved counts, workload points, rating and average
+    resolution time per staff member."""
     staff = User.query.filter(User.role.in_(UserRole.STAFF), User.is_active.is_(True)).order_by(User.full_name).all()
     rows = []
     for user in staff:
@@ -74,13 +91,17 @@ def technician_workload():
         active = [t for t in assigned if t.status in (TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS)]
         resolved = [t for t in assigned if t.resolved_at]
         durations = [t.resolution_duration_seconds for t in resolved]
+        ratings = [t.satisfaction_rating for t in assigned if t.satisfaction_rating]
         rows.append({
             'user': user,
             'active_count': len(active),
+            'points': sum(TicketPriority.RANK.get(t.priority, 1) for t in active),
             'critical_count': sum(1 for t in active if t.priority == TicketPriority.CRITICAL),
             'overdue_count': sum(1 for t in active if t.is_overdue),
             'resolved_count': len(resolved),
             'avg_resolution': format_duration(sum(durations) / len(durations)) if durations else None,
+            'avg_rating': round(sum(ratings) / len(ratings), 1) if ratings else None,
+            'rating_count': len(ratings),
         })
     return rows
 
@@ -168,5 +189,8 @@ def admin_dashboard():
         'trend': daily_trend(query, days=14),
         'workload': technician_workload(),
         'sla': compute_sla_metrics(query.all()),
+        'ratings': rating_summary(query),
+        'away_with_work': away_technicians_with_work(),
+        'auto_assign_enabled': get_auto_assign_config().enabled,
         'recent_audits': AuditLog.query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(8).all(),
     }

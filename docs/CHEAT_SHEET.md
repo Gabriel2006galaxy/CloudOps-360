@@ -32,6 +32,21 @@ curl -fsSL https://raw.githubusercontent.com/Gabriel2006galaxy/CloudOps-360/main
 - Full demo script: `docs/CloudOps360_Demo_Script.docx`
 - Full guide: `docs/CloudOps360_User_and_Demo_Guide.docx`
 
+## 2b. New features to show (auto-assign, Away status, star rating)
+- **Auto-assign (ON by default):** Jordan reports a ticket (category *End-User Computing*) → it is
+  assigned straight away to **Sarah** (specialist, lightest workload). Open the ticket → **Activity
+  history** shows "System (auto-assign)" and the reason. *Sarah does not need to Claim it any more.*
+- **Run auto-assign now:** admin → **Auto-Assignment** → the queue shows the 2 sample tickets still
+  waiting → click **Run auto-assign now** → both get a technician.
+- **Away:** Marcus → **Queue & Workload** → My status **Away**, note "Sick leave" → admin dashboard
+  shows a warning; new tickets go to Sarah only.
+- **Settings:** admin → **Auto-Assignment** → ON/OFF, max open tickets per technician (1–50, default
+  10), wait times; skills are set on **Users & Roles → edit technician**.
+- **Star rating:** after Jordan presses **Confirm & Close**, the ticket shows **"How was the support?"**
+  → pick stars + comment → Sarah gets a notification; admin **Analytics** shows the average.
+- **Claim still exists:** when every technician is free, new tickets wait in the queue and anyone can
+  claim them (auto-assigned after Critical 30 min / High 2 h / Medium 4 h / Low 12 h).
+
 ## 3. Run on the laptop (practice / backup)
 ```bash
 cd C:\Users\Gabriel\OneDrive\Desktop\CloudOps-360

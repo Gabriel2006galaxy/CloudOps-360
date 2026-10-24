@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import stat_card, chart_box, priority_badge %}
+{% from "_macros.html" import stat_card, chart_box, priority_badge, stars, availability_badge %}
 {% block title %}Analytics{% endblock %}
 {% block chart_scripts %}{% include "_chart_scripts.html" %}{% endblock %}
 
@@ -24,10 +24,11 @@
 {% block content %}
 {% set s = sla_data %}
 <div class="row g-3 mb-4">
-  <div class="col-6 col-xl-3">{{ stat_card('Resolution SLA', (s.compliance_rate ~ '%') if s.compliance_rate is not none else '—', 'bi-patch-check', 'success', (s.evaluated_count ~ ' tickets evaluated') if s.evaluated_count else 'No data yet') }}</div>
-  <div class="col-6 col-xl-3">{{ stat_card('First-response SLA', (s.response_compliance_rate ~ '%') if s.response_compliance_rate is not none else '—', 'bi-reply', 'info') }}</div>
-  <div class="col-6 col-xl-3">{{ stat_card('Avg. resolution time', ((s.avg_resolution_seconds / 3600)|round(1) ~ ' h') if s.avg_resolution_seconds else '—', 'bi-hourglass-split', 'primary') }}</div>
-  <div class="col-6 col-xl-3">{{ stat_card('Breached', s.breached_count, 'bi-exclamation-triangle', 'danger', s.overdue_count ~ ' still open', url_for('tickets.index', overdue=1)) }}</div>
+  <div class="col-6 col-xl">{{ stat_card('Resolution SLA', (s.compliance_rate ~ '%') if s.compliance_rate is not none else '—', 'bi-patch-check', 'success', (s.evaluated_count ~ ' tickets evaluated') if s.evaluated_count else 'No data yet') }}</div>
+  <div class="col-6 col-xl">{{ stat_card('First-response SLA', (s.response_compliance_rate ~ '%') if s.response_compliance_rate is not none else '—', 'bi-reply', 'info') }}</div>
+  <div class="col-6 col-xl">{{ stat_card('Avg. resolution time', ((s.avg_resolution_seconds / 3600)|round(1) ~ ' h') if s.avg_resolution_seconds else '—', 'bi-hourglass-split', 'primary') }}</div>
+  <div class="col-6 col-xl">{{ stat_card('Breached', s.breached_count, 'bi-exclamation-triangle', 'danger', s.overdue_count ~ ' still open', url_for('tickets.index', overdue=1)) }}</div>
+  <div class="col-12 col-xl">{{ stat_card('Customer satisfaction', ('★ ' ~ ratings.avg ~ ' / 5') if ratings.count else '—', 'bi-star-fill', 'warning', (ratings.count ~ ' rating' ~ ('s' if ratings.count != 1 else '')) if ratings.count else 'No ratings yet') }}</div>
 </div>
 
 <div class="row g-4 mb-4">
@@ -63,20 +64,31 @@
   </div>
 </div>
 
-<div class="card card-premium">
-  <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Technician performance</h2></div>
-  <div class="table-responsive">
-    <table class="table table-premium align-middle">
-      <thead><tr><th scope="col">Technician</th><th scope="col">Active</th><th scope="col">Overdue</th><th scope="col">Resolved</th><th scope="col">Avg. resolution</th></tr></thead>
-      <tbody>
-        {% for w in workload %}
-        <tr><td class="fw-semibold">{{ w.user.full_name }} <small class="text-muted">{{ w.user.role_label }}</small></td><td>{{ w.active_count }}</td>
-          <td>{{ w.overdue_count }}</td><td>{{ w.resolved_count }}</td><td>{{ w.avg_resolution or '—' }}</td></tr>
-        {% else %}
-        <tr><td colspan="5" class="text-center text-muted py-3">No active technicians.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold">Technician performance</h2><span class="small text-muted">Points: Critical 4 · High 3 · Medium 2 · Low 1</span></div>
+      <div class="table-responsive">
+        <table class="table table-premium align-middle">
+          <thead><tr><th scope="col">Technician</th><th scope="col">Active</th><th scope="col">Points</th><th scope="col">Overdue</th><th scope="col">Resolved</th><th scope="col">Avg. resolution</th><th scope="col">Rating</th></tr></thead>
+          <tbody>
+            {% for w in workload %}
+            <tr><td class="fw-semibold">{{ w.user.full_name }} <small class="text-muted">{{ w.user.role_label }}</small>{% if w.user.is_away %} {{ availability_badge(w.user) }}{% endif %}</td><td>{{ w.active_count }}</td>
+              <td>{{ w.points }}</td><td>{{ w.overdue_count }}</td><td>{{ w.resolved_count }}</td><td>{{ w.avg_resolution or '—' }}</td>
+              <td class="text-nowrap">{% if w.avg_rating %}{{ stars(w.avg_rating, label=False) }} <span class="small">{{ w.avg_rating }}</span> <span class="small text-muted">({{ w.rating_count }})</span>{% else %}<span class="text-muted small">—</span>{% endif %}</td></tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-3">No active technicians.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card card-premium p-4 h-100">
+      <h2 class="h6 fw-bold mb-3">Customer ratings</h2>
+      {{ chart_box('analyticsRatingChart', ratings.count == 0, 'No ratings yet') }}
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -91,6 +103,9 @@ document.addEventListener('DOMContentLoaded', function () {
   C.bar('analyticsCategoryChart', {{ category_data|map(attribute='name')|list|tojson }}, {{ category_data|map(attribute='count')|list|tojson }}, { horizontal: true });
   C.bar('analyticsResolutionChart', {{ by_priority|map(attribute='priority')|list|tojson }}, {{ by_priority|map(attribute='avg_hours')|list|tojson }},
         { label: 'Avg hours', colors: ['#ef4444', '#f59e0b', '#0ea5e9', '#64748b'] });
+  C.bar('analyticsRatingChart', {{ ratings.distribution.keys()|map('string')|list|tojson }}.map(function (s) { return s + ' ★'; }),
+        {{ ratings.distribution.values()|list|tojson }},
+        { horizontal: true, label: 'Ratings', colors: ['#22c55e', '#84cc16', '#f59e0b', '#f97316', '#ef4444'] });
 });
 </script>
 {% endblock %}

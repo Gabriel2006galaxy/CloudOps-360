@@ -5,13 +5,21 @@ from datetime import datetime, timedelta
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from app.admin.forms import CategoryForm, SLAPolicyForm, UserCreateAdminForm, UserEditAdminForm
+from app.admin.forms import (
+    AutoAssignSettingsForm, CategoryForm, SLAPolicyForm, TechnicianSettingsForm, UserCreateAdminForm,
+    UserEditAdminForm,
+)
 from app.auth.decorators import admin_required
 from app.extensions import db
 from app.models import AuditLog, SLAPolicy, Ticket, TicketCategory, TicketStatus, User, UserRole
 from app.services import metrics
+from app.services.assignment import (
+    away_technicians_with_work, format_minutes, run_auto_assign, set_availability, technician_overview,
+)
 from app.services.audit import log_audit_event
+from app.services.settings import get_auto_assign_config, save_auto_assign_config
 from app.services.sla import apply_sla_to_ticket, get_sla_metrics
+from app.tickets.forms import ClaimForm
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -99,18 +107,26 @@ def edit_user(user_id):
 
     active_assignments = Ticket.query.filter(Ticket.technician_id == user.id,
                                              Ticket.status.in_(TicketStatus.ACTIVE)).count()
+    tech_form = None
+    if user.is_technician:
+        tech_form = TechnicianSettingsForm(formdata=None).fill_from(user)
+        tech_form.skills.data = [c.id for c in user.skills]
+
+    def render_edit(status=200):
+        return render_template('admin/user_edit.html', form=form, user=user, tech_form=tech_form,
+                               active_assignments=active_assignments), status
 
     if form.validate_on_submit():
         new_role, new_active = form.role.data, bool(form.is_active.data)
         if user.id == current_user.id and (new_role != UserRole.ADMIN or not new_active):
             flash('You cannot remove your own administrator role or deactivate your own account.', 'danger')
-            return render_template('admin/user_edit.html', form=form, user=user, active_assignments=active_assignments), 400
+            return render_edit(400)
         if user.is_admin and user.is_active and (new_role != UserRole.ADMIN or not new_active) and _active_admin_count(user.id) == 0:
             flash('At least one active administrator must remain.', 'danger')
-            return render_template('admin/user_edit.html', form=form, user=user, active_assignments=active_assignments), 400
+            return render_edit(400)
         if new_role == UserRole.EMPLOYEE and active_assignments:
             flash(f'{user.full_name} still has {active_assignments} active assigned ticket(s). Reassign them first.', 'danger')
-            return render_template('admin/user_edit.html', form=form, user=user, active_assignments=active_assignments), 400
+            return render_edit(400)
 
         old_role, old_active = user.role, user.is_active
         user.full_name = form.full_name.data.strip()
@@ -134,7 +150,41 @@ def edit_user(user_id):
         flash(f"User '{user.username}' updated.", 'success')
         return redirect(url_for('admin.users'))
 
-    return render_template('admin/user_edit.html', form=form, user=user, active_assignments=active_assignments)
+    return render_edit()
+
+
+@admin_bp.route('/users/<int:user_id>/technician-settings', methods=['POST'])
+@login_required
+@admin_required
+def technician_settings(user_id):
+    """Skills (categories) and availability of a technician, used by auto-assignment."""
+    user = _get_or_404(User, user_id)
+    if not user.is_technician:
+        flash('Skills and availability apply to support technicians only.', 'warning')
+        return redirect(url_for('admin.edit_user', user_id=user.id))
+    form = TechnicianSettingsForm()
+    if not form.validate_on_submit():
+        for errors in form.errors.values():
+            for err in errors:
+                flash(err, 'danger')
+        return redirect(url_for('admin.edit_user', user_id=user.id))
+
+    old_skills = sorted(c.name for c in user.skills)
+    user.skills = TicketCategory.query.filter(TicketCategory.id.in_(form.skills.data or [])).all()
+    new_skills = sorted(c.name for c in user.skills)
+    if new_skills != old_skills:
+        log_audit_event('ADMIN_TECH_SKILLS_CHANGE', 'User', user.id,
+                        f"Skills of '{user.username}': {', '.join(old_skills) or 'none'} -> {', '.join(new_skills) or 'none'}",
+                        commit=False)
+
+    available = form.status.data == 'available'
+    current_back_on = user.away_until.date() if user.away_until else None
+    if available == user.is_away or (not available and ((form.away_note.data or '').strip() or None) != user.away_note) \
+            or (not available and form.back_on.data != current_back_on):
+        set_availability(user, available, note=form.away_note.data, back_on=form.back_on.data, actor=current_user)
+    db.session.commit()
+    flash(f"Technician settings for {user.full_name} saved ({user.availability_label}).", 'success')
+    return redirect(url_for('admin.edit_user', user_id=user.id))
 
 
 @admin_bp.route('/users/<int:user_id>/toggle-status', methods=['POST'])
@@ -262,6 +312,61 @@ def sla():
                            open_modal=request.method == 'POST')
 
 
+# ---------------- AUTO-ASSIGNMENT ---------------- #
+
+@admin_bp.route('/auto-assign', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def auto_assign():
+    """Auto-assignment settings, technician status and the waiting queue."""
+    config = get_auto_assign_config()
+    form = AutoAssignSettingsForm()
+    if form.validate_on_submit():
+        waits = form.wait_minutes()
+        save_auto_assign_config(form.enabled.data, form.max_open.data, waits)
+        log_audit_event('ADMIN_AUTO_ASSIGN_SETTINGS', 'SystemSetting', 'auto_assign',
+                        f"Auto-assignment {'ON' if form.enabled.data else 'OFF'}; max {form.max_open.data} open "
+                        f"tickets per technician; queue wait " + ', '.join(f"{p} {m} min" for p, m in waits.items()),
+                        commit=False)
+        db.session.commit()
+        flash(f"Auto-assignment settings saved ({'ON' if form.enabled.data else 'OFF'}, "
+              f"max {form.max_open.data} open tickets per technician).", 'success')
+        return redirect(url_for('admin.auto_assign'))
+    if request.method == 'GET':
+        form.fill_from(config)
+
+    queue = (Ticket.query.filter(Ticket.technician_id.is_(None), Ticket.status == TicketStatus.OPEN)
+             .order_by(Ticket.created_at).all())
+    return render_template(
+        'admin/auto_assign.html', form=form, config=config, overview=technician_overview(config),
+        away_with_work=away_technicians_with_work(), queue=queue, run_form=ClaimForm(),
+        wait_labels={p: format_minutes(m) for p, m in config.wait_minutes.items()},
+    ), 400 if request.method == 'POST' else 200
+
+
+@admin_bp.route('/auto-assign/run', methods=['POST'])
+@login_required
+@admin_required
+def auto_assign_run():
+    """'Run auto-assign now': assigns every queued ticket immediately (ignores wait times)."""
+    if not ClaimForm().validate_on_submit():
+        flash('Your form expired. Please try again.', 'warning')
+        return redirect(url_for('admin.auto_assign'))
+    assigned, waiting = run_auto_assign(force=True, actor=current_user)
+    log_audit_event('ADMIN_AUTO_ASSIGN_RUN', 'Ticket', None,
+                    f"'Run auto-assign now' by {current_user.username}: {len(assigned)} assigned, "
+                    f"{len(waiting)} still waiting", commit=False)
+    db.session.commit()
+    if assigned:
+        flash(f"Assigned {len(assigned)} ticket(s): " +
+              '; '.join(f"{t.reference_id} → {tech.full_name}" for t, tech, _ in assigned), 'success')
+    if waiting:
+        flash(f"{len(waiting)} ticket(s) could not be assigned: {waiting[0][1]}.", 'warning')
+    if not assigned and not waiting:
+        flash('The queue is empty, so there was nothing to assign.', 'info')
+    return redirect(url_for('admin.auto_assign'))
+
+
 # ---------------- AUDIT LOGS ---------------- #
 
 def _audit_query():
@@ -338,5 +443,6 @@ def analytics():
         trend=metrics.daily_trend(query, days=days),
         by_priority=metrics.resolution_by_priority(),
         workload=metrics.technician_workload(),
+        ratings=metrics.rating_summary(query),
         total=query.count(),
     )

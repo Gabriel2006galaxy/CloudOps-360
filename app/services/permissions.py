@@ -72,6 +72,12 @@ def can_upload_attachment(user, ticket):
     return can_comment(user, ticket)
 
 
+def can_rate_ticket(user, ticket):
+    """The reporter rates the support once, after a resolved ticket is closed."""
+    return (ticket.creator_id == user.id and ticket.status == TicketStatus.CLOSED
+            and ticket.resolved_at is not None and ticket.satisfaction_rating is None)
+
+
 def can_download_attachment(user, attachment):
     return can_view_ticket(user, attachment.ticket)
 

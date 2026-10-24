@@ -15,7 +15,9 @@ erDiagram
     users |o--o{ tickets : "assigned (technician_id)"
     users ||--o{ comments : "writes"
     users ||--o{ attachments : "uploads"
-    users ||--o{ ticket_status_history : "changes"
+    users |o--o{ ticket_status_history : "changes (NULL = system)"
+    users ||--o{ technician_skills : "specialises in"
+    ticket_categories ||--o{ technician_skills : "skill"
     users |o--o{ audit_logs : "acts (nullable)"
     users ||--o{ notifications : "receives"
     ticket_categories ||--o{ tickets : "classifies"
@@ -35,6 +37,9 @@ erDiagram
         bool is_active
         datetime created_at
         datetime last_login_at
+        bool is_available "away technicians get no auto-assigned tickets"
+        varchar away_note
+        datetime away_until "available again from this moment"
     }
     ticket_categories {
         int id PK
@@ -72,6 +77,9 @@ erDiagram
         datetime first_responded_at
         datetime resolved_at
         datetime closed_at
+        smallint satisfaction_rating "CHECK 1..5, nullable (CSAT)"
+        varchar satisfaction_comment
+        datetime rated_at
     }
     comments {
         int id PK
@@ -96,7 +104,7 @@ erDiagram
     ticket_status_history {
         int id PK
         int ticket_id FK "ON DELETE CASCADE"
-        int changed_by_id FK
+        int changed_by_id FK "nullable: NULL = auto-assignment"
         varchar old_status
         varchar new_status
         text notes
@@ -112,6 +120,15 @@ erDiagram
         varchar ip_address
         varchar user_agent
         datetime created_at
+    }
+    technician_skills {
+        int user_id PK,FK "ON DELETE CASCADE"
+        int category_id PK,FK "ON DELETE CASCADE"
+    }
+    system_settings {
+        varchar key PK "e.g. auto_assign_max_open"
+        varchar value
+        datetime updated_at
     }
     notifications {
         int id PK

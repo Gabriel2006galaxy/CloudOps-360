@@ -178,6 +178,15 @@ def register_security_hooks(app):
         session.setdefault('login_at', now)
         return None
 
+    @app.before_request
+    def auto_assign_waiting_tickets():
+        # Tickets nobody claimed in time are assigned on the next page load (throttled)
+        if request.endpoint in ('static', 'main.health'):
+            return None
+        from app.services.assignment import run_scheduled_sweep
+        run_scheduled_sweep(app)
+        return None
+
     @app.after_request
     def security_headers(response):
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
@@ -322,6 +331,23 @@ def register_commands(app):
         click.echo(f"Summary: {ok} ok, {missing} missing, {mismatch} checksum mismatches")
         if missing or mismatch or health.get('status') != 'accessible':
             raise SystemExit(1)
+
+    @app.cli.command('auto-assign')
+    @click.option('--now', 'force', is_flag=True, help='Assign every queued ticket, ignoring wait times.')
+    def auto_assign_command(force):
+        """Assign queued tickets that waited longer than their priority's limit (for cron)."""
+        from app.services.assignment import run_auto_assign
+        from app.services.settings import get_auto_assign_config
+        if not force and not get_auto_assign_config().enabled:
+            click.echo('Auto-assignment is switched off (Administration > Auto-Assignment).')
+            return
+        assigned, waiting = run_auto_assign(force=force)
+        db.session.commit()
+        for ticket, tech, reason in assigned:
+            click.echo(f"  ASSIGNED  {ticket.reference_id} -> {tech.username}: {reason}")
+        for ticket, reason in waiting:
+            click.echo(f"  WAITING   {ticket.reference_id}: {reason}")
+        click.echo(f"Summary: {len(assigned)} assigned, {len(waiting)} still waiting")
 
     @app.cli.command('purge-login-attempts')
     @click.option('--days', default=30, show_default=True)

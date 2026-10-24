@@ -1,9 +1,15 @@
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, IntegerField, PasswordField, SelectField, StringField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length, NumberRange, Optional, Regexp, ValidationError
+from wtforms import (
+    BooleanField, IntegerField, PasswordField, SelectField, SelectMultipleField, StringField, SubmitField,
+    TextAreaField,
+)
+from wtforms.validators import DataRequired, InputRequired, Length, NumberRange, Optional, Regexp, ValidationError
+from wtforms.widgets import CheckboxInput, ListWidget
 
 from app.auth.forms import EMAIL_REGEX, USERNAME_REGEX, StrongPassword
 from app.models import TicketCategory, TicketPriority, User, UserRole
+from app.services.settings import MAX_OPEN_LIMITS, WAIT_MINUTES_LIMITS
+from app.technician.forms import AvailabilityForm
 
 
 class UserCreateAdminForm(FlaskForm):
@@ -79,3 +85,49 @@ class SLAPolicyForm(FlaskForm):
     def validate_resolution_time_hours(self, field):
         if self.response_time_hours.data and field.data and field.data < self.response_time_hours.data:
             raise ValidationError('Resolution target cannot be shorter than the response target.')
+
+
+def _wait_field(label):
+    return IntegerField(label, validators=[InputRequired(message='Enter a number of minutes.'),
+                                           NumberRange(min=WAIT_MINUTES_LIMITS[0], max=WAIT_MINUTES_LIMITS[1])])
+
+
+class AutoAssignSettingsForm(FlaskForm):
+    """Auto-assignment configuration (stored in system_settings)."""
+    enabled = BooleanField('Auto-assign new tickets')
+    max_open = IntegerField('Maximum open tickets per technician', validators=[
+        InputRequired(message='Enter a number between 1 and 50.'),
+        NumberRange(min=MAX_OPEN_LIMITS[0], max=MAX_OPEN_LIMITS[1],
+                    message=f'Choose between {MAX_OPEN_LIMITS[0]} and {MAX_OPEN_LIMITS[1]} tickets.')])
+    wait_critical = _wait_field('Critical')
+    wait_high = _wait_field('High')
+    wait_medium = _wait_field('Medium')
+    wait_low = _wait_field('Low')
+    submit = SubmitField('Save Settings')
+
+    WAIT_FIELDS = {
+        TicketPriority.CRITICAL: 'wait_critical',
+        TicketPriority.HIGH: 'wait_high',
+        TicketPriority.MEDIUM: 'wait_medium',
+        TicketPriority.LOW: 'wait_low',
+    }
+
+    def fill_from(self, config):
+        self.enabled.data = config.enabled
+        self.max_open.data = config.max_open
+        for priority, name in self.WAIT_FIELDS.items():
+            getattr(self, name).data = config.wait_minutes[priority]
+        return self
+
+    def wait_minutes(self):
+        return {priority: getattr(self, name).data for priority, name in self.WAIT_FIELDS.items()}
+
+
+class TechnicianSettingsForm(AvailabilityForm):
+    """Administrator view of a technician: skills (categories) plus availability."""
+    skills = SelectMultipleField('Skills (categories this technician specialises in)', coerce=int,
+                                 widget=ListWidget(prefix_label=False), option_widget=CheckboxInput())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.skills.choices = [(c.id, c.name) for c in TicketCategory.query.order_by(TicketCategory.name).all()]

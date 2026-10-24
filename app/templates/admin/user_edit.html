@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import field %}
+{% from "_macros.html" import field, availability_badge %}
 {% block title %}Edit {{ user.username }}{% endblock %}
 
 {% block page_header %}
@@ -34,6 +34,43 @@
         <button type="submit" class="btn btn-cyan"><i class="bi bi-save me-1" aria-hidden="true"></i>Save Changes</button>
       </div>
     </form>
+
+    {% if tech_form %}
+    <form method="POST" action="{{ url_for('admin.technician_settings', user_id=user.id) }}" class="card card-premium p-4 mt-4" id="technician-settings" novalidate>
+      {{ tech_form.hidden_tag() }}
+      <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
+        <h2 class="h6 fw-bold mb-0"><i class="bi bi-shuffle text-info me-2" aria-hidden="true"></i>Auto-assignment settings</h2>
+        {{ availability_badge(user) }}
+      </div>
+      <fieldset class="mb-3">
+        <legend class="form-label small fw-semibold">{{ tech_form.skills.label.text }}</legend>
+        <div class="row g-1">
+          {% for option in tech_form.skills %}
+          <div class="col-md-6"><div class="form-check">
+            {{ option(class='form-check-input') }}
+            <label class="form-check-label small" for="{{ option.id }}">{{ option.label.text }}</label>
+          </div></div>
+          {% endfor %}
+        </div>
+        <div class="form-text small">Tickets in these categories go to this technician before non-specialists. No skills = general support.</div>
+      </fieldset>
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="{{ tech_form.status.id }}">Availability</label>
+          {{ tech_form.status(class='form-select form-select-sm') }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="{{ tech_form.back_on.id }}">Back on (optional)</label>
+          {{ tech_form.back_on(class='form-control form-control-sm', type='date') }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="{{ tech_form.away_note.id }}">Note (optional)</label>
+          {{ tech_form.away_note(class='form-control form-control-sm', maxlength=120, placeholder='e.g. On leave') }}
+        </div>
+      </div>
+      <div class="d-flex justify-content-end"><button type="submit" class="btn btn-cyan btn-sm"><i class="bi bi-save me-1" aria-hidden="true"></i>Save technician settings</button></div>
+    </form>
+    {% endif %}
   </div>
   <div class="col-lg-4">
     <div class="card card-premium p-4">

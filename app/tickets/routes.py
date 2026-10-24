@@ -11,6 +11,7 @@ from app.models import (
     TicketStatusHistory, User, UserRole, utcnow,
 )
 from app.services import permissions as perm
+from app.services.assignment import auto_assign_new_ticket
 from app.services.audit import log_audit_event
 from app.services.notifications import create_notification
 from app.services.sla import apply_sla_to_ticket, overdue_filter
@@ -20,7 +21,7 @@ from app.services.workflow import (
     staff_choices, transition_actions,
 )
 from app.tickets.forms import (
-    AssignForm, AttachmentUploadForm, ClaimForm, CommentForm, DetailsForm, PriorityForm,
+    AssignForm, AttachmentUploadForm, ClaimForm, CommentForm, DetailsForm, PriorityForm, RatingForm,
     StatusChangeForm, TicketCreateForm,
 )
 
@@ -210,10 +211,12 @@ def create():
                             f"{ticket.reference_id} [{ticket.priority}] created by {current_user.username}"
                             + (f" with attachment '{stored['original_filename']}'" if stored else ''),
                             commit=False)
+            assigned_tech, assignment_note = auto_assign_new_ticket(ticket)
 
             link = url_for('tickets.detail', reference_id=ticket.reference_id)
+            skip_ids = {current_user.id} | ({assigned_tech.id} if assigned_tech else set())
             for staff in User.query.filter(User.role.in_(UserRole.STAFF), User.is_active.is_(True),
-                                           User.id != current_user.id).all():
+                                           User.id.notin_(skip_ids)).all():
                 create_notification(staff.id, f"New incident {ticket.reference_id}",
                                     f"[{ticket.priority}] {ticket.title} — reported by {current_user.full_name}",
                                     link=link, type='danger' if ticket.priority == TicketPriority.CRITICAL else 'info',
@@ -229,7 +232,11 @@ def create():
                 storage.delete(stored['key'])
             raise
 
-        flash(f"Incident {ticket.reference_id} created successfully.", 'success')
+        if assigned_tech:
+            flash(f"Incident {ticket.reference_id} created and automatically assigned to "
+                  f"{assigned_tech.full_name} ({assignment_note}).", 'success')
+        else:
+            flash(f"Incident {ticket.reference_id} created successfully. {assignment_note}", 'success')
         return redirect(url_for('tickets.detail', reference_id=ticket.reference_id))
 
     status_code = 400 if request.method == 'POST' else 200
@@ -270,6 +277,7 @@ def detail(reference_id):
         priority_form=priority_form,
         details_form=details_form,
         claim_form=ClaimForm(),
+        rating_form=RatingForm(),
         actions=transition_actions(current_user, ticket),
         can=dict(
             work=perm.can_work_ticket(current_user, ticket),
@@ -279,6 +287,7 @@ def detail(reference_id):
             internal=perm.can_post_internal_note(current_user, ticket),
             upload=perm.can_upload_attachment(current_user, ticket),
             edit_priority=perm.can_work_ticket(current_user, ticket) and not ticket.is_resolved,
+            rate=perm.can_rate_ticket(current_user, ticket),
         ),
         can_delete_attachment=lambda att: perm.can_delete_attachment(current_user, att),
         internal_count=sum(1 for c in comments if c.is_internal),
@@ -356,6 +365,40 @@ def update_priority(reference_id):
                         f"'{current_user.username}' priority change rejected: {exc}")
         flash(str(exc), 'danger')
     return redirect(url_for('tickets.detail', reference_id=reference_id))
+
+
+@tickets_bp.route('/<reference_id>/rate', methods=['POST'])
+@login_required
+def rate(reference_id):
+    """Customer satisfaction rating (1-5 stars) by the reporter after closing."""
+    ticket = get_ticket_or_404(reference_id)
+    require_view(ticket)
+    link = url_for('tickets.detail', reference_id=reference_id)
+    if not perm.can_rate_ticket(current_user, ticket):
+        log_audit_event('TICKET_RATING_REJECTED', 'Ticket', ticket.reference_id,
+                        f"'{current_user.username}' may not rate {ticket.reference_id}")
+        flash('Only the person who reported this incident can rate it, once, after it is resolved and closed.', 'warning')
+        return redirect(link)
+    form = RatingForm()
+    if not form.validate_on_submit():
+        _form_errors(form)
+        return redirect(link + '#rating')
+
+    stars = form.rating.data
+    ticket.satisfaction_rating = stars
+    ticket.satisfaction_comment = (form.comment.data or '').strip() or None
+    ticket.rated_at = utcnow()
+    log_audit_event('TICKET_RATED', 'Ticket', ticket.reference_id,
+                    f"{ticket.reference_id} rated {stars}/5 by {current_user.username}", commit=False)
+    if ticket.technician_id:
+        message = f"{current_user.full_name} rated your support {stars}/5 " + '★' * stars + '☆' * (5 - stars)
+        if ticket.satisfaction_comment:
+            message += f': "{ticket.satisfaction_comment[:120]}"'
+        create_notification(ticket.technician_id, f"New rating: {ticket.reference_id}", message, link=link + '#rating',
+                            type='success' if stars >= 4 else ('warning' if stars <= 2 else 'info'), commit=False)
+    db.session.commit()
+    flash('Thank you for rating the support you received!', 'success')
+    return redirect(link + '#rating')
 
 
 @tickets_bp.route('/<reference_id>/details', methods=['POST'])

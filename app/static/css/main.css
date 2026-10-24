@@ -370,6 +370,41 @@ h1, h2, h3, h4, h5, h6, .brand-font {
   text-transform: uppercase;
 }
 
+/* Star rating (CSAT). Inputs are ordered 5..1 and shown reversed so that
+   hovering or checking a star also lights every star before it. */
+.star-rating {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  gap: 0.15rem;
+}
+.star-rating input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.star-rating label {
+  font-size: 2rem;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.star-rating label:hover,
+.star-rating label:hover ~ label,
+.star-rating input:checked ~ label { color: #f59e0b; }
+.star-rating label:hover { transform: scale(1.12); }
+.star-rating input:focus-visible + label { outline: 2px solid var(--accent-cyan); outline-offset: 2px; border-radius: 4px; }
+.stars-static { color: #f59e0b; letter-spacing: 0.08em; }
+.stars-static .star-off { color: #94a3b8; }
+
+/* Technician availability */
+.badge-away {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.badge-available {
+  background-color: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
 /* Custom Buttons */
 .btn-cyan {
   /* #0e7490 keeps white text above WCAG AA contrast (5.4:1) */

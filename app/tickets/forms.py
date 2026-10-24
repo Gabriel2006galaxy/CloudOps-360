@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField
-from wtforms import BooleanField, HiddenField, SelectField, StringField, SubmitField, TextAreaField
+from wtforms import BooleanField, HiddenField, RadioField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, Optional
 
 from app.models import TicketCategory, TicketPriority, TicketStatus
@@ -42,7 +42,8 @@ class AssignForm(FlaskForm):
     def __init__(self, *args, staff=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.technician_id.choices = [(0, '— Unassigned (return to queue) —')] + [
-            (u.id, f"{u.full_name} ({u.role_label})") for u in (staff or [])
+            (u.id, f"{u.full_name} ({u.role_label})" + (f" — {u.availability_label}" if u.is_away else ''))
+            for u in (staff or [])
         ]
 
 
@@ -70,3 +71,10 @@ class AttachmentUploadForm(FlaskForm):
 class ClaimForm(FlaskForm):
     """CSRF-only form for single-button actions."""
     confirm = HiddenField(default='1')
+
+
+class RatingForm(FlaskForm):
+    """Customer satisfaction: 1-5 stars plus an optional comment."""
+    rating = RadioField('Rating', coerce=int, choices=[(i, str(i)) for i in range(5, 0, -1)],
+                        validators=[DataRequired(message='Choose between 1 and 5 stars.')])
+    comment = TextAreaField('Comment (optional)', validators=[Optional(), Length(max=500)])

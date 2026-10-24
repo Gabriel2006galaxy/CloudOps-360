@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% from "_macros.html" import priority_badge, empty_state, availability_badge %}
+{% block title %}Auto-Assignment{% endblock %}
+
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Auto-assignment</li>
+</ol></nav>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">Auto-Assignment
+      {% if config.enabled %}<span class="badge bg-success align-middle fs-6">ON</span>{% else %}<span class="badge bg-secondary align-middle fs-6">OFF</span>{% endif %}</h1>
+    <p class="text-muted small mb-0">Gives new incidents to the right technician automatically: lightest workload, specialists first, nobody who is away.</p>
+  </div>
+  <form method="POST" action="{{ url_for('admin.auto_assign_run') }}"
+        data-confirm="Assign every ticket waiting in the queue right now (ignoring the wait times)?" data-confirm-button="Run auto-assign now" data-confirm-class="btn-cyan">
+    {{ run_form.hidden_tag() }}
+    <button type="submit" class="btn btn-cyan shadow-sm"><i class="bi bi-lightning-charge-fill me-1" aria-hidden="true"></i>Run auto-assign now
+      {% if queue %}<span class="badge bg-light text-dark ms-1">{{ queue|length }}</span>{% endif %}</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block content %}
+{% for row in away_with_work %}
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="alert">
+  <i class="bi bi-moon-stars-fill fs-5" aria-hidden="true"></i>
+  <div class="flex-grow-1"><strong>{{ row.user.full_name }}</strong> is {{ row.user.availability_label|lower }}{% if row.user.away_note %} ({{ row.user.away_note }}){% endif %}
+    and still has <strong>{{ row.open_count }}</strong> open ticket{{ 's' if row.open_count != 1 }}. They are not moved automatically — reassign the urgent ones.</div>
+  <a href="{{ url_for('tickets.index', technician=row.user.id, status='active') }}" class="btn btn-sm btn-outline-dark">View tickets</a>
+</div>
+{% endfor %}
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-5">
+    <form method="POST" class="card card-premium p-4 h-100" novalidate>
+      {{ form.hidden_tag() }}
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-sliders text-info me-2" aria-hidden="true"></i>Settings</h2>
+      <div class="form-check form-switch mb-3">
+        {{ form.enabled(class='form-check-input', role='switch') }}
+        <label class="form-check-label fw-semibold" for="{{ form.enabled.id }}">{{ form.enabled.label.text }}</label>
+        <div class="form-text small">Off = manual mode: tickets wait in the queue until claimed or assigned by an administrator.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="{{ form.max_open.id }}">{{ form.max_open.label.text }}</label>
+        <div class="input-group input-group-sm" style="max-width: 220px;">
+          {{ form.max_open(class='form-control' ~ (' is-invalid' if form.max_open.errors else ''), type='number', min=1, max=50, required=True) }}
+          <span class="input-group-text">tickets</span>
+        </div>
+        {% for e in form.max_open.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        <div class="form-text small">Between 1 and 50. A technician at the maximum gets no more tickets until one is resolved.</div>
+      </div>
+      <fieldset class="mb-3">
+        <legend class="form-label small fw-semibold mb-1">Wait in the queue before auto-assigning (minutes)</legend>
+        <div class="form-text small mt-0 mb-2">Used when every technician was free, so the ticket was left for someone to claim. 0 = immediately.</div>
+        <div class="row g-2">
+          {% for priority, name in form.WAIT_FIELDS.items() %}{% set f = form[name] %}
+          <div class="col-6">
+            <label class="form-label small mb-1" for="{{ f.id }}">{{ priority_badge(priority) }} <span class="text-muted">now {{ wait_labels[priority] }}</span></label>
+            <div class="input-group input-group-sm">
+              {{ f(class='form-control' ~ (' is-invalid' if f.errors else ''), type='number', min=0, max=10080, required=True) }}
+              <span class="input-group-text">min</span>
+            </div>
+            {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="mt-auto"><button type="submit" class="btn btn-cyan"><i class="bi bi-save me-1" aria-hidden="true"></i>Save Settings</button></div>
+    </form>
+  </div>
+
+  <div class="col-xl-7">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-people text-info me-2" aria-hidden="true"></i>Technicians</h2>
+        <span class="small text-muted">Workload points: Critical 4 · High 3 · Medium 2 · Low 1</span></div>
+      {% if overview %}
+      <div class="table-responsive">
+        <table class="table table-premium align-middle">
+          <thead><tr><th scope="col">Technician</th><th scope="col">Status</th><th scope="col">Skills</th><th scope="col">Open</th><th scope="col">Points</th><th scope="col" class="text-end">Edit</th></tr></thead>
+          <tbody>
+            {% for row in overview %}
+            <tr>
+              <td class="fw-semibold small">{{ row.user.full_name }}</td>
+              <td>{{ availability_badge(row.user) }}{% if row.away and row.user.away_note %}<div class="small text-muted">{{ row.user.away_note }}</div>{% endif %}</td>
+              <td style="max-width: 220px;">{% for c in row.user.skills %}<span class="badge bg-info-subtle text-info border border-info me-1 mb-1">{{ c.name }}</span>{% else %}<span class="text-muted small">General</span>{% endfor %}</td>
+              <td><span class="badge {% if row.full %}bg-danger{% else %}bg-secondary-subtle text-body border{% endif %}">{{ row.count }} / {{ config.max_open }}</span>{% if row.full %}<div class="small text-danger">Full</div>{% endif %}</td>
+              <td class="fw-semibold">{{ row.points }}</td>
+              <td class="text-end"><a href="{{ url_for('admin.edit_user', user_id=row.user.id) }}#technician-settings" class="btn btn-sm btn-outline-info"><i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Edit {{ row.user.full_name }}</span></a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      {{ empty_state('bi-person-x', 'No active technicians', 'Create a support technician account first.', url_for('admin.users'), 'Manage users') }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card card-premium h-100">
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-inbox text-primary me-2" aria-hidden="true"></i>Waiting in the queue <span class="badge bg-primary ms-1">{{ queue|length }}</span></h2></div>
+      {% if queue %}
+      <div class="list-group list-group-flush">
+        {% for t in queue %}
+        <div class="list-group-item bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div class="overflow-hidden">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="font-monospace small text-info text-decoration-none">{{ t.reference_id }}</a>
+              {{ priority_badge(t.priority) }}
+            </div>
+            <div class="small fw-semibold text-truncate">{{ t.title }}</div>
+            <div class="text-muted" style="font-size: 0.75rem;">{{ t.category.name }} · reported {{ t.created_at|timeago }}</div>
+          </div>
+          <span class="small text-muted text-nowrap">auto after {{ wait_labels[t.priority] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      {{ empty_state('bi-inbox', 'Queue is empty', 'Every ticket has a technician.') }}
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card card-premium p-4 h-100">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-diagram-3 text-info me-2" aria-hidden="true"></i>How it works</h2>
+      <ol class="small mb-0 ps-3">
+        <li class="mb-2">A new ticket goes straight to a technician. If <strong>every technician is free</strong>, it waits in the queue so anyone can <strong>claim</strong> it.</li>
+        <li class="mb-2">If nobody claims it within the wait time for its priority, the system assigns it.</li>
+        <li class="mb-2">Only technicians who are <strong>Available</strong> and below the <strong>maximum of {{ config.max_open }}</strong> open tickets are considered.</li>
+        <li class="mb-2"><strong>Specialists</strong> in the ticket's category come first.</li>
+        <li class="mb-2">Among them, the <strong>lightest workload</strong> wins (points weight critical work more). Ties are decided at random.</li>
+        <li>The reason is written to the ticket's history and the audit trail, and the technician is notified.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from sqlalchemy import true as sql_true
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from app.extensions import db, login_manager
@@ -91,6 +92,14 @@ def _sql_in(values):
     return ', '.join(f"'{v}'" for v in values)
 
 
+# Categories a technician specialises in (used by auto-assignment)
+technician_skills = db.Table(
+    'technician_skills',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('category_id', db.Integer, db.ForeignKey('ticket_categories.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     __table_args__ = (
@@ -108,7 +117,14 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
 
+    # Technician availability: away technicians never receive auto-assigned tickets
+    is_available = db.Column(db.Boolean, default=True, server_default=sql_true(), nullable=False)
+    away_note = db.Column(db.String(120), nullable=True)
+    away_until = db.Column(db.DateTime, nullable=True)  # UTC; available again from this moment
+
     # Relationships
+    skills = db.relationship('TicketCategory', secondary=technician_skills, lazy='selectin',
+                             order_by='TicketCategory.name')
     created_tickets = db.relationship('Ticket', foreign_keys='Ticket.creator_id', backref='creator', lazy='dynamic')
     assigned_tickets = db.relationship('Ticket', foreign_keys='Ticket.technician_id', backref='technician', lazy='dynamic')
     comments = db.relationship('Comment', backref='author', lazy='dynamic')
@@ -140,6 +156,22 @@ class User(UserMixin, db.Model):
     @property
     def role_label(self):
         return dict(UserRole.CHOICES).get(self.role, self.role)
+
+    @property
+    def is_away(self):
+        """Marked away and the 'back on' moment (if any) has not arrived yet."""
+        if self.is_available:
+            return False
+        return self.away_until is None or as_utc(self.away_until) > datetime.now(timezone.utc)
+
+    @property
+    def availability_label(self):
+        if not self.is_away:
+            return 'Available'
+        label = 'Away'
+        if self.away_until:
+            label += f" until {as_utc(self.away_until).strftime('%b %d')}"
+        return label
 
     @property
     def initials(self):
@@ -226,6 +258,8 @@ class Ticket(db.Model):
     __table_args__ = (
         db.CheckConstraint(f"status IN ({_sql_in(TicketStatus.VALUES)})", name='ck_tickets_status'),
         db.CheckConstraint(f"priority IN ({_sql_in(TicketPriority.VALUES)})", name='ck_tickets_priority'),
+        db.CheckConstraint('satisfaction_rating IS NULL OR (satisfaction_rating >= 1 AND satisfaction_rating <= 5)',
+                           name='ck_tickets_satisfaction_rating'),
         db.Index('ix_tickets_technician_status', 'technician_id', 'status'),
         db.Index('ix_tickets_creator_status', 'creator_id', 'status'),
     )
@@ -254,6 +288,11 @@ class Ticket(db.Model):
     first_responded_at = db.Column(db.DateTime, nullable=True)
     resolved_at = db.Column(db.DateTime, nullable=True)
     closed_at = db.Column(db.DateTime, nullable=True)
+
+    # Customer satisfaction (CSAT), given once by the reporter after closing
+    satisfaction_rating = db.Column(db.SmallInteger, nullable=True)  # 1-5 stars
+    satisfaction_comment = db.Column(db.String(500), nullable=True)
+    rated_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     comments = db.relationship('Comment', backref='ticket', cascade='all, delete-orphan', order_by='Comment.created_at.asc()')
@@ -399,7 +438,7 @@ class TicketStatusHistory(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id', ondelete='CASCADE'), nullable=False, index=True)
-    changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # NULL = system (auto-assignment)
     old_status = db.Column(db.String(20), nullable=False)
     new_status = db.Column(db.String(20), nullable=False)
     notes = db.Column(db.Text, nullable=True)
@@ -407,8 +446,24 @@ class TicketStatusHistory(db.Model):
 
     changed_by = db.relationship('User')
 
+    @property
+    def actor_name(self):
+        return self.changed_by.full_name if self.changed_by else 'System (auto-assign)'
+
     def __repr__(self):
         return f'<StatusHistory Ticket {self.ticket_id}: {self.old_status} -> {self.new_status}>'
+
+
+class SystemSetting(db.Model):
+    """Administrator-editable settings stored as key/value pairs (e.g. auto-assignment)."""
+    __tablename__ = 'system_settings'
+
+    key = db.Column(db.String(64), primary_key=True)
+    value = db.Column(db.String(255), nullable=False)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<SystemSetting {self.key}={self.value}>'
 
 
 class AuditLog(db.Model):

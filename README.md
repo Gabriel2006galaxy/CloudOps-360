@@ -8,7 +8,7 @@
 | | |
 | :--- | :--- |
 | **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
-| **Tests** | 123 pytest tests — passing on SQLite **and** MySQL 8.0 |
+| **Tests** | 143 pytest tests — passing on SQLite **and** MySQL 8.0 |
 | **Status** | Application complete and verified locally. AWS deployment is scripted and documented but **not yet verified on AWS** — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
 Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
@@ -38,6 +38,21 @@ assignee, created-date range, overdue), column sorting, pagination and a full ac
 **SLA** — configurable first-response and resolution targets per priority, live countdown,
 overdue flags, resolution duration, compliance rates. All timestamps UTC.
 
+**Auto-assignment** — a new ticket goes straight to the best available technician: only technicians
+who are *Available* and below the maximum open tickets (default 10, admin can set 1–50), specialists in
+the ticket's category first, then the lightest workload (points: Critical 4, High 3, Medium 2, Low 1),
+random only between equal candidates. If every technician is free the ticket waits in the queue for
+anyone to claim; unclaimed tickets are assigned after a per-priority wait (default Critical 30 min,
+High 2 h, Medium 4 h, Low 12 h). The reason is written to the ticket history and the audit trail.
+Admins configure it under **Administration → Auto-Assignment** (switch on/off, limits, *Run auto-assign
+now*) and set technician skills on the user's edit page. Technicians mark themselves **Available/Away**
+(with note and "back on" date, after which they return automatically); admins are warned about
+away technicians who still hold open tickets. CLI for cron: `flask auto-assign [--now]`.
+
+**Customer satisfaction (CSAT)** — after a resolved ticket is closed, the reporter rates the support
+1–5 stars with an optional comment (once). Ratings appear on the ticket, notify the technician, and
+feed the average rating on the analytics page and technician tables.
+
 **Notifications** — database-backed notifications for assignments, comments, status and priority
 changes, with unread badge (polled), notification centre and mark-as-read.
 
@@ -59,7 +74,7 @@ CloudOps-360/
 ├── app/
 │   ├── __init__.py            # app factory, security hooks, error handlers, CLI commands
 │   ├── extensions.py          # db, migrate, login_manager, csrf
-│   ├── models.py              # 10 tables (9 required + login_attempts)
+│   ├── models.py              # 12 tables (9 required + login_attempts, technician_skills, system_settings)
 │   ├── auth/ tickets/ technician/ admin/ dashboard/ attachments/ main/   # blueprints
 │   ├── services/
 │   │   ├── permissions.py     # who may see/do what (single source of truth)
@@ -67,6 +82,8 @@ CloudOps-360/
 │   │   ├── storage.py         # local disk / Amazon EFS storage abstraction
 │   │   ├── secrets.py         # Secrets Manager / env resolution (fail closed)
 │   │   ├── sla.py metrics.py  # SLA engine and dashboard metrics
+│   │   ├── assignment.py      # auto-assignment, technician availability
+│   │   ├── settings.py        # admin-editable settings (system_settings table)
 │   │   ├── audit.py notifications.py login_security.py
 │   ├── templates/  static/css/  static/js/
 ├── migrations/                # Alembic migrations (flask db upgrade)
@@ -198,6 +215,7 @@ powershell -ExecutionPolicy Bypass -File scripts\run_tests_mysql.ps1 -q      # s
 | `test_dashboards.py` | dashboard numbers equal database counts, trends, empty states |
 | `test_security.py` | CSRF, headers, cookies, secret exposure, fail-closed production config, SQL-injection inputs |
 | `test_pages.py` | crawls every reachable page for each role (no server errors, no dead links) |
+| `test_assignment.py` | auto-assignment rules (least busy, specialists, away, maximum, queue wait, run-now), settings limits 1–50, availability, CSAT ratings |
 
 The suite ignores your local `.env` (`CLOUDOPS_SKIP_DOTENV=1`) so results do not depend on local settings.
 

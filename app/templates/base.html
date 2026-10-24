@@ -78,6 +78,9 @@
         <a href="{{ url_for('admin.sla') }}" class="sidebar-link {% if request.endpoint == 'admin.sla' %}active{% endif %}">
           <i class="bi bi-stopwatch" aria-hidden="true"></i><span>SLA Policies</span>
         </a>
+        <a href="{{ url_for('admin.auto_assign') }}" class="sidebar-link {% if request.endpoint == 'admin.auto_assign' %}active{% endif %}">
+          <i class="bi bi-shuffle" aria-hidden="true"></i><span>Auto-Assignment</span>
+        </a>
         <a href="{{ url_for('admin.analytics') }}" class="sidebar-link {% if request.endpoint == 'admin.analytics' %}active{% endif %}">
           <i class="bi bi-graph-up-arrow" aria-hidden="true"></i><span>Analytics</span>
         </a>

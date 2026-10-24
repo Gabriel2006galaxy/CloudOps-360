@@ -82,6 +82,12 @@ class Config:
     ALLOW_SELF_REGISTRATION = env_bool('ALLOW_SELF_REGISTRATION', True)
     SHOW_DEMO_ACCOUNTS = env_bool('SHOW_DEMO_ACCOUNTS', False)
 
+    # Auto-assignment: initial on/off value until an administrator saves the
+    # setting (then the database value wins), and how often web requests check
+    # the queue for tickets that waited too long.
+    AUTO_ASSIGN_DEFAULT_ENABLED = env_bool('AUTO_ASSIGN_DEFAULT_ENABLED', True)
+    AUTO_ASSIGN_SWEEP_SECONDS = env_int('AUTO_ASSIGN_SWEEP_SECONDS', 60)
+
     # AWS configuration (credentials come from the EC2 IAM instance role, never from code)
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
     # Secrets Manager secret holding {"username","password","host","port","dbname"}
@@ -115,6 +121,8 @@ class TestingConfig(Config):
     MAX_CONTENT_LENGTH = 256 * 1024
     ALLOW_SELF_REGISTRATION = True
     SHOW_DEMO_ACCOUNTS = False
+    # Existing tests exercise the manual claim flow; auto-assignment tests switch it on
+    AUTO_ASSIGN_DEFAULT_ENABLED = False
 
 
 class ProductionConfig(Config):

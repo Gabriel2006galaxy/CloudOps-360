@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import priority_badge, status_badge, sla_cell, empty_state, stat_card, chart_box %}
+{% from "_macros.html" import priority_badge, status_badge, sla_cell, empty_state, stat_card, chart_box, stars, availability_badge %}
 {% block title %}Admin Dashboard{% endblock %}
 {% block chart_scripts %}{% include "_chart_scripts.html" %}{% endblock %}
 
@@ -10,6 +10,8 @@
     <p class="text-muted small mb-0">System-wide incidents, SLA compliance, technician workload and security events.</p>
   </div>
   <div class="d-flex flex-wrap gap-2">
+    <a href="{{ url_for('admin.auto_assign') }}" class="btn btn-outline-secondary"><i class="bi bi-shuffle me-1" aria-hidden="true"></i>Auto-assign
+      <span class="badge {% if m.auto_assign_enabled %}bg-success{% else %}bg-secondary{% endif %} ms-1">{{ 'ON' if m.auto_assign_enabled else 'OFF' }}</span></a>
     <a href="{{ url_for('admin.analytics') }}" class="btn btn-outline-info"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>Analytics</a>
     <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary"><i class="bi bi-people me-1" aria-hidden="true"></i>Users</a>
   </div>
@@ -18,6 +20,14 @@
 
 {% block content %}
 {% set sla = m.sla %}
+{% for row in m.away_with_work %}
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="alert">
+  <i class="bi bi-moon-stars-fill fs-5" aria-hidden="true"></i>
+  <div class="flex-grow-1"><strong>{{ row.user.full_name }}</strong> is {{ row.user.availability_label|lower }}{% if row.user.away_note %} ({{ row.user.away_note }}){% endif %}
+    and still has <strong>{{ row.open_count }}</strong> open ticket{{ 's' if row.open_count != 1 }}. New tickets are not given to them.</div>
+  <a href="{{ url_for('tickets.index', technician=row.user.id, status='active') }}" class="btn btn-sm btn-outline-dark">Reassign</a>
+</div>
+{% endfor %}
 <div class="row g-3 mb-4">
   <div class="col-6 col-xl">{{ stat_card('Total incidents', m.total_tickets, 'bi-hdd-stack', 'primary', m.resolved_tickets ~ ' resolved or closed', url_for('tickets.index')) }}</div>
   <div class="col-6 col-xl">{{ stat_card('Open workload', m.open_tickets, 'bi-activity', 'warning', m.unassigned ~ ' unassigned', url_for('tickets.index', status='active')) }}</div>
@@ -67,17 +77,19 @@
       {% if m.workload %}
       <div class="table-responsive">
         <table class="table table-premium align-middle">
-          <thead><tr><th scope="col">Technician</th><th scope="col">Active</th><th scope="col">Critical</th><th scope="col">Overdue</th><th scope="col">Resolved</th><th scope="col">Avg. time</th></tr></thead>
+          <thead><tr><th scope="col">Technician</th><th scope="col">Active</th><th scope="col">Critical</th><th scope="col">Overdue</th><th scope="col">Resolved</th><th scope="col">Avg. time</th><th scope="col">Rating</th></tr></thead>
           <tbody>
             {% for w in m.workload %}
             <tr>
               <td><div class="d-flex align-items-center gap-2"><span class="avatar" style="width: 28px; height: 28px; font-size: 0.68rem;" aria-hidden="true">{{ w.user.initials }}</span>
-                <div><div class="fw-semibold small">{{ w.user.full_name }}</div><small class="text-muted">{{ w.user.role_label }}</small></div></div></td>
+                <div><div class="fw-semibold small">{{ w.user.full_name }}</div><small class="text-muted">{{ w.user.role_label }}</small>
+                  {% if w.user.is_away %}<div>{{ availability_badge(w.user) }}</div>{% endif %}</div></div></td>
               <td><a href="{{ url_for('tickets.index', technician=w.user.id, status='active') }}" class="badge bg-info-subtle text-info border border-info text-decoration-none">{{ w.active_count }}</a></td>
               <td>{% if w.critical_count %}<span class="badge bg-danger">{{ w.critical_count }}</span>{% else %}<span class="text-muted small">0</span>{% endif %}</td>
               <td>{% if w.overdue_count %}<span class="badge bg-warning text-dark">{{ w.overdue_count }}</span>{% else %}<span class="text-muted small">0</span>{% endif %}</td>
               <td><span class="small">{{ w.resolved_count }}</span></td>
               <td class="small text-muted">{{ w.avg_resolution or '—' }}</td>
+              <td class="small text-nowrap">{% if w.avg_rating %}<span class="stars-static">★</span> {{ w.avg_rating }} <span class="text-muted">({{ w.rating_count }})</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>

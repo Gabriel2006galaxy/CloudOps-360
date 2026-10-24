@@ -7,7 +7,11 @@ Status key:
 * ⚠️ **Partial** — see note.
 * ⛔ **Not done** — see note.
 
-Verification baseline (2026-10-14): `pytest` 123 passed on SQLite and 123 passed on MySQL 8.0.43;
+Latest verification (2026-10-24): `pytest` 143 passed on SQLite and 143 passed on MySQL 8.0.43;
+migration `c3f1a9d27e64` upgraded/downgraded/re-upgraded on MySQL and `flask db check` clean; new
+auto-assignment, availability and rating pages checked in the browser.
+
+Earlier baseline (2026-10-14): `pytest` 123 passed on SQLite and 123 passed on MySQL 8.0.43;
 migrations upgraded/downgraded/re-upgraded on MySQL; live server end-to-end check (CSRF, upload,
 EFS-style storage, authorized/denied downloads, `storage-check`) passed; browser checks at desktop
 and 375 px in dark and light themes.
@@ -23,7 +27,7 @@ and 375 px in dark and light themes.
 | Amazon RDS for MySQL | 🟡 | `docs/aws_deployment.md §2.1`, `rds_mysql_setup.sql` |
 | Amazon EFS | 🟡 | `efs_mount_setup.sh`; storage abstraction ✅ locally |
 | IAM instance role, least privilege, Secrets Manager | 🟡 | `iam_*.json`; secret resolution code ✅ (fail-closed tests) |
-| Git/GitHub, pytest | ✅ | commits on branch `complete-platform`; 123 tests |
+| Git/GitHub, pytest | ✅ | GitHub `main`; 143 tests |
 | Docker Compose for local dev | ⚠️ | file updated (no hard-coded passwords) but **not run** — Docker is not installed on the dev machine; local MySQL 8.0 service used instead |
 
 ## 2. UI/UX
@@ -122,10 +126,24 @@ and 375 px in dark and light themes.
 | Local dev configuration | ✅ | `.env.example`, `scripts/setup_local_mysql.ps1` |
 | EFS storage integration | ✅ code / 🟡 AWS | `services/storage.py` |
 | AWS deployment config/scripts | 🟡 | `infrastructure/aws/` |
-| Automated tests | ✅ | `tests/` (123) |
+| Automated tests | ✅ | `tests/` (143) |
 | README | ✅ | `README.md` |
 | AWS architecture diagram | ✅ | `docs/architecture.md` |
 | ER diagram | ✅ | `docs/database_er.md` |
 | Request/data-flow diagram | ✅ | `docs/data_flow.md` |
 | Security verification checklist | ✅ | `docs/security_checklist.md` |
 | Lab 1/2/3 demonstration checklists | ✅ | `docs/lab_guides.md` |
+
+## 12. Additional features (added 2026-10-24, beyond the original brief)
+| Feature | Status | Evidence / note |
+| :--- | :-: | :--- |
+| Auto-assignment of new tickets (least busy available technician) | ✅ | `services/assignment.py`; `test_new_ticket_goes_to_least_busy_technician` |
+| Every technician free → ticket waits in the queue to be claimed | ✅ | `test_when_every_technician_is_free_the_ticket_waits_to_be_claimed` |
+| Unclaimed tickets auto-assigned after a per-priority wait (on page loads and `flask auto-assign`) | ✅ | `test_unclaimed_tickets_are_assigned_after_the_wait_time`, `test_sweep_runs_during_normal_page_loads` |
+| Weighted workload points, specialists first (technician skills), random only on ties | ✅ | `test_workload_points_weight_critical_work`, `test_specialists_come_first` |
+| Maximum open tickets per technician (default 10, admin sets 1–50) | ✅ | `test_maximum_open_tickets_per_technician`, `test_settings_page_limits_max_open_between_1_and_50` |
+| Technician Available/Away with note and "back on" date; automatic return; admin warning for away technicians with open tickets | ✅ | `test_away_technicians_never_get_tickets`, `test_away_period_ends_automatically`, `test_technician_marks_themselves_away_and_admins_are_warned` |
+| Admin settings page + "Run auto-assign now" (admin only, audited) | ✅ | `test_run_now_button_is_admin_only` |
+| Reason shown in ticket history ("System (auto-assign)") and audit trail | ✅ | asserted in the tests above |
+| Safe with several workers/instances (conditional UPDATE) | ✅ | `test_assignment_is_applied_only_once` |
+| Customer satisfaction rating 1–5 stars by the reporter, once, after close; analytics average | ✅ | `test_reporter_rates_a_closed_ticket_once`, `test_rating_rules`, `test_satisfaction_metrics` |

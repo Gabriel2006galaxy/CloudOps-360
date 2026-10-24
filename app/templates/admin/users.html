@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import field, pagination_nav, empty_state %}
+{% from "_macros.html" import field, pagination_nav, empty_state, availability_badge %}
 {% block title %}Users &amp; Roles{% endblock %}
 
 {% block page_header %}
@@ -63,7 +63,8 @@
                 <small class="text-muted">{{ u.email }} · <code>{{ u.username }}</code></small></div>
             </div>
           </td>
-          <td><span class="badge {{ u.role_badge_class }}">{{ u.role_label }}</span></td>
+          <td><span class="badge {{ u.role_badge_class }}">{{ u.role_label }}</span>
+            {% if u.is_technician and u.is_active %}<div class="mt-1">{{ availability_badge(u) }}</div>{% endif %}</td>
           <td class="small">{{ u.department or '—' }}</td>
           <td>{% if u.is_active %}<span class="badge bg-success-subtle text-success border border-success">Active</span>{% else %}<span class="badge bg-danger-subtle text-danger border border-danger">Deactivated</span>{% endif %}</td>
           <td class="small text-muted">{{ u.last_login_at|timeago if u.last_login_at else 'Never' }}</td>

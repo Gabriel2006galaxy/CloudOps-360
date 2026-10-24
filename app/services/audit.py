@@ -32,21 +32,24 @@ def client_ip():
     return (request.remote_addr or '')[:45] or None
 
 
-def log_audit_event(action, entity_type=None, entity_id=None, details=None, user_id=None, commit=True):
+def log_audit_event(action, entity_type=None, entity_id=None, details=None, user_id=None, commit=True,
+                    as_system=False):
     """Records an audit log entry for compliance and security forensics.
 
     - action: identifier, e.g. 'AUTH_LOGIN_SUCCESS', 'TICKET_STATUS_CHANGE'
     - commit=False stages the entry in the caller's transaction so the audit
       record and the change it describes are committed atomically.
+    - as_system=True records an automatic action with no actor, even when it
+      runs during some user's request (e.g. scheduled auto-assignment).
     Never pass passwords or secrets; details are scrubbed as a safety net.
     """
     try:
         actor_id = user_id
-        if actor_id is None and has_request_context() and current_user and current_user.is_authenticated:
+        if actor_id is None and not as_system and has_request_context() and current_user and current_user.is_authenticated:
             actor_id = current_user.id
 
         user_agent = None
-        if has_request_context() and request.user_agent:
+        if not as_system and has_request_context() and request.user_agent:
             user_agent = (request.user_agent.string or '')[:250] or None
 
         entry = AuditLog(
@@ -55,7 +58,7 @@ def log_audit_event(action, entity_type=None, entity_id=None, details=None, user
             entity_type=entity_type,
             entity_id=str(entity_id)[:64] if entity_id is not None else None,
             details=scrub_secrets(details),
-            ip_address=client_ip(),
+            ip_address=None if as_system else client_ip(),
             user_agent=user_agent,
         )
         db.session.add(entry)
