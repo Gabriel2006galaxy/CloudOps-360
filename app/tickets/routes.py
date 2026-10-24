@@ -8,10 +8,10 @@ from sqlalchemy import asc, case, desc, or_
 from app.extensions import db
 from app.models import (
     Attachment, Comment, Ticket, TicketCategory, TicketPriority, TicketStatus,
-    TicketStatusHistory, User, UserRole, utcnow,
+    TicketStatusHistory, User, utcnow,
 )
 from app.services import permissions as perm
-from app.services.assignment import auto_assign_new_ticket
+from app.services.assignment import announce_new_ticket, auto_assign_new_ticket
 from app.services.audit import log_audit_event
 from app.services.notifications import create_notification
 from app.services.sla import apply_sla_to_ticket, overdue_filter
@@ -211,16 +211,8 @@ def create():
                             f"{ticket.reference_id} [{ticket.priority}] created by {current_user.username}"
                             + (f" with attachment '{stored['original_filename']}'" if stored else ''),
                             commit=False)
-            assigned_tech, assignment_note = auto_assign_new_ticket(ticket)
-
-            link = url_for('tickets.detail', reference_id=ticket.reference_id)
-            skip_ids = {current_user.id} | ({assigned_tech.id} if assigned_tech else set())
-            for staff in User.query.filter(User.role.in_(UserRole.STAFF), User.is_active.is_(True),
-                                           User.id.notin_(skip_ids)).all():
-                create_notification(staff.id, f"New incident {ticket.reference_id}",
-                                    f"[{ticket.priority}] {ticket.title} — reported by {current_user.full_name}",
-                                    link=link, type='danger' if ticket.priority == TicketPriority.CRITICAL else 'info',
-                                    commit=False)
+            assigned_tech, assignment_note, needs_admin = auto_assign_new_ticket(ticket)
+            announce_new_ticket(ticket, current_user, assigned_tech, assignment_note, needs_admin)
             db.session.commit()
         except StorageError as exc:
             db.session.rollback()

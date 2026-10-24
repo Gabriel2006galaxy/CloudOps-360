@@ -11,8 +11,8 @@ Student AWS Cloud Computing Lab project (Flask + MySQL + Bootstrap/Chart.js, thr
 - `demo_files/` — screenshot + log (accepted uploads) and `fake.png` (rejected on purpose).
 
 ## State of the project (as of 2026-10-24)
-- App complete; 143 pytest tests pass locally on SQLite and MySQL 8.0 (`.venv\Scripts\python -m pytest -q`).
-- Added 2026-10-24: auto-assignment (ON by default; least busy available technician, specialists first, weighted points, max open per technician default 10 / admin 1–50, queue + claim when every technician is free, per-priority wait then auto-assign, "Run auto-assign now"), technician Available/Away status, technician skills, CSAT star ratings. Migration `c3f1a9d27e64`; 12 tables.
+- App complete; 144 pytest tests pass locally on SQLite and MySQL 8.0 (`.venv\Scripts\python -m pytest -q`).
+- Added 2026-10-24: auto-assignment (ON by default; least busy available technician, specialists first, weighted points, max open per technician default 10 / admin 1–50, queue + claim when every technician is free, per-priority wait then auto-assign on its own — no admin button, by request; technicians notified of every new ticket with queue count; admins alerted only when nobody can take a ticket), technician Available/Away status, technician skills, CSAT star ratings. Migration `c3f1a9d27e64`; 12 tables.
 - Local dev: Windows, MySQL80 service, `.env` created by `scripts/setup_local_mysql.ps1` (gitignored), run with `.venv\Scripts\python run.py`.
 - GitHub: https://github.com/Gabriel2006galaxy/CloudOps-360 (branch `main`). This machine has no credential helper: pushes go through `git push origin main` in a terminal where Gabriel types his username and a GitHub access token himself — never handle the token.
 - **Lab 1 is done on AWS** and verified live: EC2 Amazon Linux 2023, t3.micro, Nginx + Gunicorn, MariaDB on the instance.

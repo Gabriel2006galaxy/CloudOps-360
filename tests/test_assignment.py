@@ -51,17 +51,27 @@ def test_new_ticket_goes_to_least_busy_technician(client, emp_user, tech_user, o
     assert 'Auto-assigned to Other Technician' in history.notes and 'lightest workload' in history.notes
     audit = AuditLog.query.filter_by(action='TICKET_AUTO_ASSIGN', entity_id=ticket.reference_id).one()
     assert audit.user_id is None
-    assert Notification.query.filter_by(user_id=other_tech.id, title=f'Auto-assigned: {ticket.reference_id}').count() == 1
+    assigned_notice = Notification.query.filter_by(user_id=other_tech.id, title=f'Auto-assigned: {ticket.reference_id}').one()
+    assert 'You now have 1 open ticket.' in assigned_notice.message
     # The chosen technician gets the assignment notice instead of the generic "new incident" one
     assert Notification.query.filter_by(user_id=other_tech.id, title=f'New incident {ticket.reference_id}').count() == 0
-    assert Notification.query.filter_by(user_id=tech_user.id, title=f'New incident {ticket.reference_id}').count() == 1
+    team_notice = Notification.query.filter_by(user_id=tech_user.id, title=f'New incident {ticket.reference_id}').one()
+    assert 'Auto-assigned to Other Technician' in team_notice.message
 
 
-def test_when_every_technician_is_free_the_ticket_waits_to_be_claimed(client, emp_user, tech_user, other_tech):
+def test_when_every_technician_is_free_the_ticket_waits_to_be_claimed(client, admin_user, emp_user, tech_user, other_tech):
     _configure()
+    make_ticket(emp_user, title='Already waiting')
     login(client, 'test_emp')
     ticket = _create(client)
     assert ticket.technician_id is None and ticket.status == S.OPEN
+
+    # Every technician (and the admin, for information) hears how many tickets are waiting
+    for user in (tech_user, other_tech, admin_user):
+        notice = Notification.query.filter_by(user_id=user.id,
+                                              title=f'New ticket in the queue: {ticket.reference_id}').one()
+        assert '2 tickets are waiting to be claimed' in notice.message
+    assert Notification.query.filter(Notification.title.like('Needs assignment%')).count() == 0
     logout(client)
 
     login(client, 'test_tech')
@@ -117,7 +127,18 @@ def test_away_technicians_never_get_tickets(app, emp_user, tech_user, other_tech
     assert chosen is None and 'away' in reason
 
 
-def test_maximum_open_tickets_per_technician(client, emp_user, tech_user, other_tech):
+def test_away_technicians_are_not_notified_about_new_tickets(client, emp_user, tech_user, other_tech):
+    _configure()
+    set_availability(other_tech, False, note='On leave')
+    db.session.commit()
+    login(client, 'test_emp')
+    ticket = _create(client)
+    title = f'New ticket in the queue: {ticket.reference_id}'
+    assert Notification.query.filter_by(user_id=tech_user.id, title=title).count() == 1
+    assert Notification.query.filter_by(user_id=other_tech.id, title=title).count() == 0
+
+
+def test_maximum_open_tickets_per_technician(client, admin_user, emp_user, tech_user, other_tech):
     _configure(max_open=1)
     make_ticket(emp_user, technician=tech_user, status=S.ASSIGNED)
     make_ticket(emp_user, technician=other_tech, status=S.ASSIGNED)
@@ -126,6 +147,9 @@ def test_maximum_open_tickets_per_technician(client, emp_user, tech_user, other_
     assert ticket.technician_id is None
     chosen, reason = choose_technician(ticket, get_auto_assign_config())
     assert chosen is None and 'maximum of 1' in reason
+    # Nobody can take it, so (only now) the administrator is asked to step in
+    alert = Notification.query.filter_by(user_id=admin_user.id, title=f'Needs assignment: {ticket.reference_id}').one()
+    assert alert.type == 'warning' and 'assign it manually' in alert.message
 
 
 def test_away_period_ends_automatically(app, tech_user):
@@ -174,21 +198,20 @@ def test_assignment_is_applied_only_once(app, emp_user, tech_user, other_tech):
 
 # ---------------- administrator pages ---------------- #
 
-def test_run_now_button_is_admin_only(client, admin_user, emp_user, tech_user):
-    _configure(enabled=False)  # works even in manual mode, because the admin asked for it
+def test_no_admin_action_is_needed_to_assign_the_queue(client, runner, admin_user, emp_user, tech_user):
+    _configure()
     ticket = make_ticket(emp_user)
-
-    login(client, 'test_tech')
-    assert client.post('/admin/auto-assign/run').status_code == 403
-    assert _reload(ticket).technician_id is None
+    login(client, 'test_admin')
+    # There is no manual "run" button: assignment happens on its own
+    assert client.post('/admin/auto-assign/run').status_code == 404
+    assert b'Run auto-assign now' not in client.get('/admin/auto-assign').data
     logout(client)
 
-    login(client, 'test_admin')
-    assert client.post('/admin/auto-assign/run').status_code == 302
-    assert _reload(ticket).technician_id == tech_user.id
+    # Operators can still force it from cron/SSH
+    result = runner.invoke(args=['auto-assign', '--now'])
+    assert 'ASSIGNED' in result.output and _reload(ticket).technician_id == tech_user.id
     history = TicketStatusHistory.query.filter_by(ticket_id=ticket.id, new_status=S.ASSIGNED).one()
-    assert history.changed_by_id == admin_user.id and "Run auto-assign now" in history.notes
-    assert AuditLog.query.filter_by(action='ADMIN_AUTO_ASSIGN_RUN').count() == 1
+    assert history.changed_by_id is None and 'flask auto-assign --now' in history.notes
 
 
 def test_settings_page_limits_max_open_between_1_and_50(client, admin_user, emp_user):

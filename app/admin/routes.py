@@ -14,12 +14,11 @@ from app.extensions import db
 from app.models import AuditLog, SLAPolicy, Ticket, TicketCategory, TicketStatus, User, UserRole
 from app.services import metrics
 from app.services.assignment import (
-    away_technicians_with_work, format_minutes, run_auto_assign, set_availability, technician_overview,
+    away_technicians_with_work, format_minutes, set_availability, technician_overview,
 )
 from app.services.audit import log_audit_event
 from app.services.settings import get_auto_assign_config, save_auto_assign_config
 from app.services.sla import apply_sla_to_ticket, get_sla_metrics
-from app.tickets.forms import ClaimForm
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -339,32 +338,9 @@ def auto_assign():
              .order_by(Ticket.created_at).all())
     return render_template(
         'admin/auto_assign.html', form=form, config=config, overview=technician_overview(config),
-        away_with_work=away_technicians_with_work(), queue=queue, run_form=ClaimForm(),
+        away_with_work=away_technicians_with_work(), queue=queue,
         wait_labels={p: format_minutes(m) for p, m in config.wait_minutes.items()},
     ), 400 if request.method == 'POST' else 200
-
-
-@admin_bp.route('/auto-assign/run', methods=['POST'])
-@login_required
-@admin_required
-def auto_assign_run():
-    """'Run auto-assign now': assigns every queued ticket immediately (ignores wait times)."""
-    if not ClaimForm().validate_on_submit():
-        flash('Your form expired. Please try again.', 'warning')
-        return redirect(url_for('admin.auto_assign'))
-    assigned, waiting = run_auto_assign(force=True, actor=current_user)
-    log_audit_event('ADMIN_AUTO_ASSIGN_RUN', 'Ticket', None,
-                    f"'Run auto-assign now' by {current_user.username}: {len(assigned)} assigned, "
-                    f"{len(waiting)} still waiting", commit=False)
-    db.session.commit()
-    if assigned:
-        flash(f"Assigned {len(assigned)} ticket(s): " +
-              '; '.join(f"{t.reference_id} → {tech.full_name}" for t, tech, _ in assigned), 'success')
-    if waiting:
-        flash(f"{len(waiting)} ticket(s) could not be assigned: {waiting[0][1]}.", 'warning')
-    if not assigned and not waiting:
-        flash('The queue is empty, so there was nothing to assign.', 'info')
-    return redirect(url_for('admin.auto_assign'))
 
 
 # ---------------- AUDIT LOGS ---------------- #

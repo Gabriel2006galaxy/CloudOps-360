@@ -36,8 +36,11 @@ curl -fsSL https://raw.githubusercontent.com/Gabriel2006galaxy/CloudOps-360/main
 - **Auto-assign (ON by default):** Jordan reports a ticket (category *End-User Computing*) → it is
   assigned straight away to **Sarah** (specialist, lightest workload). Open the ticket → **Activity
   history** shows "System (auto-assign)" and the reason. *Sarah does not need to Claim it any more.*
-- **Run auto-assign now:** admin → **Auto-Assignment** → the queue shows the 2 sample tickets still
-  waiting → click **Run auto-assign now** → both get a technician.
+- **Notifications:** Sarah and Marcus get a notification for every new ticket (when it waits in the
+  queue it also says how many tickets are waiting). The admin is only alerted ("Needs assignment") when
+  nobody can take a ticket — no daily work for the admin.
+- **Queue:** admin → **Auto-Assignment** shows the 2 sample tickets still waiting and "auto after 4 h /
+  12 h" — the system assigns them on its own (technicians can claim them earlier).
 - **Away:** Marcus → **Queue & Workload** → My status **Away**, note "Sick leave" → admin dashboard
   shows a warning; new tickets go to Sarah only.
 - **Settings:** admin → **Auto-Assignment** → ON/OFF, max open tickets per technician (1–50, default

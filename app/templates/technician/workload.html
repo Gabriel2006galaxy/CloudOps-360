@@ -45,7 +45,7 @@
       <h2 class="h6 fw-bold mb-3"><i class="bi bi-shuffle text-info me-2" aria-hidden="true"></i>How tickets reach you</h2>
       {% if auto_assign.enabled %}
       <p class="small mb-2">Auto-assignment is <span class="badge bg-success">ON</span>. A new ticket goes to the available technician with the <strong>lightest workload</strong> (specialists in its category first), up to {{ auto_assign.max_open }} open tickets each.</p>
-      <p class="small text-muted mb-3">When every technician is free, new tickets wait in the queue for anyone to claim. Unclaimed tickets are assigned automatically after: {% for p, label in wait_labels.items() %}{{ p }} {{ label }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+      <p class="small text-muted mb-3">You get a notification for every new ticket. When every technician is free, new tickets wait in the queue (the notification says how many are waiting) for anyone to claim. Unclaimed tickets are assigned automatically after: {% for p, label in wait_labels.items() %}{{ p }} {{ label }}{{ ', ' if not loop.last }}{% endfor %}.</p>
       {% else %}
       <p class="small text-muted mb-3">Auto-assignment is <span class="badge bg-secondary">OFF</span>. Claim tickets from the unassigned queue, or wait for an administrator to assign them.</p>
       {% endif %}

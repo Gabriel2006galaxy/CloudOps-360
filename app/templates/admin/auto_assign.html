@@ -7,19 +7,9 @@
   <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
   <li class="breadcrumb-item active" aria-current="page">Auto-assignment</li>
 </ol></nav>
-<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
-  <div>
-    <h1 class="page-title fw-bold brand-font mb-1">Auto-Assignment
-      {% if config.enabled %}<span class="badge bg-success align-middle fs-6">ON</span>{% else %}<span class="badge bg-secondary align-middle fs-6">OFF</span>{% endif %}</h1>
-    <p class="text-muted small mb-0">Gives new incidents to the right technician automatically: lightest workload, specialists first, nobody who is away.</p>
-  </div>
-  <form method="POST" action="{{ url_for('admin.auto_assign_run') }}"
-        data-confirm="Assign every ticket waiting in the queue right now (ignoring the wait times)?" data-confirm-button="Run auto-assign now" data-confirm-class="btn-cyan">
-    {{ run_form.hidden_tag() }}
-    <button type="submit" class="btn btn-cyan shadow-sm"><i class="bi bi-lightning-charge-fill me-1" aria-hidden="true"></i>Run auto-assign now
-      {% if queue %}<span class="badge bg-light text-dark ms-1">{{ queue|length }}</span>{% endif %}</button>
-  </form>
-</div>
+<h1 class="page-title fw-bold brand-font mb-1">Auto-Assignment
+  {% if config.enabled %}<span class="badge bg-success align-middle fs-6">ON</span>{% else %}<span class="badge bg-secondary align-middle fs-6">OFF</span>{% endif %}</h1>
+<p class="text-muted small mb-4">The system gives new incidents to the right technician on its own: lightest workload, specialists first, nobody who is away. You only step in when nobody can take a ticket — you get a notification.</p>
 {% endblock %}
 
 {% block content %}
@@ -129,12 +119,12 @@
     <div class="card card-premium p-4 h-100">
       <h2 class="h6 fw-bold mb-3"><i class="bi bi-diagram-3 text-info me-2" aria-hidden="true"></i>How it works</h2>
       <ol class="small mb-0 ps-3">
-        <li class="mb-2">A new ticket goes straight to a technician. If <strong>every technician is free</strong>, it waits in the queue so anyone can <strong>claim</strong> it.</li>
-        <li class="mb-2">If nobody claims it within the wait time for its priority, the system assigns it.</li>
-        <li class="mb-2">Only technicians who are <strong>Available</strong> and below the <strong>maximum of {{ config.max_open }}</strong> open tickets are considered.</li>
-        <li class="mb-2"><strong>Specialists</strong> in the ticket's category come first.</li>
+        <li class="mb-2">A new ticket goes straight to a technician, automatically. Every technician gets a notification about it.</li>
+        <li class="mb-2">If <strong>every technician is free</strong>, it waits in the queue and the technicians are told how many tickets are waiting, so anyone can <strong>claim</strong> one (an administrator can also assign it).</li>
+        <li class="mb-2">If nobody claims it within the wait time for its priority, the system assigns it on its own.</li>
+        <li class="mb-2">Only technicians who are <strong>Available</strong> and below the <strong>maximum of {{ config.max_open }}</strong> open tickets are considered; <strong>specialists</strong> in the ticket's category come first.</li>
         <li class="mb-2">Among them, the <strong>lightest workload</strong> wins (points weight critical work more). Ties are decided at random.</li>
-        <li>The reason is written to the ticket's history and the audit trail, and the technician is notified.</li>
+        <li>The reason is written to the ticket's history and the audit trail. Administrators are only alerted when nobody can take a ticket.</li>
       </ol>
     </div>
   </div>

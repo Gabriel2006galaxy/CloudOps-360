@@ -174,7 +174,7 @@ def choose_technician(ticket, config, technicians=None, loads=None, rng=None):
     return chosen, '; '.join(parts)
 
 
-def _apply_assignment(ticket, technician, reason, actor=None, notify_creator=True):
+def _apply_assignment(ticket, technician, reason, notify_creator=True):
     """Assigns an Open, unassigned ticket. The conditional UPDATE makes this safe when
     several Gunicorn workers or EC2 instances run the sweep at the same moment."""
     now = utcnow()
@@ -186,16 +186,17 @@ def _apply_assignment(ticket, technician, reason, actor=None, notify_creator=Tru
         return False
 
     db.session.add(TicketStatusHistory(
-        ticket_id=ticket.id, changed_by_id=actor.id if actor else None,
+        ticket_id=ticket.id, changed_by_id=None,
         old_status=S.OPEN, new_status=S.ASSIGNED,
         notes=f"Auto-assigned to {technician.full_name}: {reason}", created_at=now,
     ))
     log_audit_event('TICKET_AUTO_ASSIGN', 'Ticket', ticket.reference_id,
-                    f"{ticket.reference_id} -> '{technician.username}' ({reason})",
-                    user_id=actor.id if actor else None, commit=False, as_system=actor is None)
+                    f"{ticket.reference_id} -> '{technician.username}' ({reason})", commit=False, as_system=True)
     link = _ticket_link(ticket)
+    open_count = Ticket.query.filter(Ticket.technician_id == technician.id, Ticket.status.in_(S.ACTIVE)).count()
     create_notification(technician.id, f"Auto-assigned: {ticket.reference_id}",
-                        f"[{ticket.priority}] {ticket.title} — {reason}", link=link,
+                        f"[{ticket.priority}] {ticket.title} — {reason}. You now have {open_count} open "
+                        f"ticket{'s' if open_count != 1 else ''}.", link=link,
                         type='danger' if ticket.priority == TicketPriority.CRITICAL else 'info', commit=False)
     if notify_creator:
         create_notification(ticket.creator_id, f"Technician update: {ticket.reference_id}",
@@ -205,23 +206,65 @@ def _apply_assignment(ticket, technician, reason, actor=None, notify_creator=Tru
 
 
 def auto_assign_new_ticket(ticket):
-    """Runs when a ticket is created. Returns (technician or None, explanation). Caller commits."""
+    """Runs when a ticket is created. Caller commits.
+
+    Returns (technician or None, explanation, needs_admin). needs_admin is True
+    when nobody can take the ticket (everyone away or at the maximum), so an
+    administrator has to assign it by hand.
+    """
     config = get_auto_assign_config()
     if not config.enabled:
-        return None, 'Auto-assignment is switched off, so the ticket waits in the queue.'
+        return None, 'Auto-assignment is switched off, so the ticket waits in the queue.', False
     release_returned_technicians()
     technicians = available_technicians()
     loads = technician_loads(technicians)
     if technicians and all(loads[t.id]['count'] == 0 for t in technicians):
         wait = format_minutes(config.wait_minutes[ticket.priority])
         return None, (f"Every technician is free, so the ticket waits in the queue for the first one to claim it "
-                      f"(assigned automatically after {wait} if nobody does).")
+                      f"(assigned automatically after {wait} if nobody does)."), False
     technician, reason = choose_technician(ticket, config, technicians, loads)
     if technician is None:
-        return None, f"The ticket waits in the queue: {reason}."
+        return None, f"The ticket waits in the queue: {reason}.", True
     if not _apply_assignment(ticket, technician, reason, notify_creator=False):
-        return None, 'The ticket waits in the queue.'
-    return technician, reason
+        return None, 'The ticket waits in the queue.', False
+    return technician, reason, False
+
+
+def announce_new_ticket(ticket, reporter, technician=None, note='', needs_admin=False):
+    """Tells the support team about a new ticket. Caller commits.
+
+    * Technicians (except away ones) hear about every new ticket, with how many
+      tickets are waiting in the queue when it was not auto-assigned.
+    * Administrators get the same information, and a warning only when nobody
+      could take the ticket, because then they must assign it themselves.
+    """
+    link = _ticket_link(ticket)
+    summary = f"[{ticket.priority}] {ticket.title} — reported by {reporter.full_name}"
+    critical = ticket.priority == TicketPriority.CRITICAL
+    if technician:
+        title = f"New incident {ticket.reference_id}"
+        message = f"{summary}. Auto-assigned to {technician.full_name}."
+    else:
+        waiting = Ticket.query.filter(Ticket.technician_id.is_(None), Ticket.status == S.OPEN).count()
+        title = f"New ticket in the queue: {ticket.reference_id}"
+        message = (f"{summary}. {waiting} ticket{'s are' if waiting != 1 else ' is'} waiting to be claimed "
+                   f"in Queue & Workload.")
+
+    skip = {reporter.id} | ({technician.id} if technician else set())
+    for tech in active_technicians():
+        if tech.id not in skip and not tech.is_away:
+            create_notification(tech.id, title, message, link=link,
+                                type='danger' if critical else 'info', commit=False)
+
+    admins = User.query.filter(User.role == UserRole.ADMIN, User.is_active.is_(True), User.id.notin_(skip)).all()
+    for admin in admins:
+        if needs_admin:
+            create_notification(admin.id, f"Needs assignment: {ticket.reference_id}",
+                                f"{summary}. {note} Please assign it manually.", link=link, type='warning',
+                                commit=False)
+        else:
+            create_notification(admin.id, title, message, link=link, type='danger' if critical else 'info',
+                                commit=False)
 
 
 def _queued_since(ticket):
@@ -232,8 +275,9 @@ def _queued_since(ticket):
     return max(t for t in (ticket.created_at, returned) if t is not None)
 
 
-def run_auto_assign(force=False, actor=None, now=None):
-    """Assigns queued tickets whose wait time is over (force=True: all of them).
+def run_auto_assign(force=False, now=None):
+    """Assigns queued tickets whose wait time is over (force=True: all of them, used by
+    `flask auto-assign --now`).
 
     Returns (assigned, waiting): lists of (ticket, technician, reason) and (ticket, reason).
     Caller commits.
@@ -258,13 +302,12 @@ def run_auto_assign(force=False, actor=None, now=None):
         if technician is None:
             waiting.append((ticket, reason))
             continue
-        if force and actor:
-            prefix = f"'Run auto-assign now' by {actor.full_name}"
-        else:
-            prefix = (f"unclaimed for {format_duration(waited.total_seconds())} "
-                      f"(limit {format_minutes(limit_minutes)})")
+        prefix = (f"unclaimed for {format_duration(waited.total_seconds())} "
+                  f"(limit {format_minutes(limit_minutes)})")
+        if waited < timedelta(minutes=limit_minutes):
+            prefix = 'assigned early with `flask auto-assign --now`'
         full_reason = f"{prefix}; {reason}"
-        if _apply_assignment(ticket, technician, full_reason, actor=actor):
+        if _apply_assignment(ticket, technician, full_reason):
             loads[technician.id]['count'] += 1
             loads[technician.id]['points'] += WORKLOAD_POINTS.get(ticket.priority, 1)
             assigned.append((ticket, technician, full_reason))

@@ -8,7 +8,7 @@
 | | |
 | :--- | :--- |
 | **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
-| **Tests** | 143 pytest tests — passing on SQLite **and** MySQL 8.0 |
+| **Tests** | 144 pytest tests — passing on SQLite **and** MySQL 8.0 |
 | **Status** | Application complete and verified locally. AWS deployment is scripted and documented but **not yet verified on AWS** — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
 Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
@@ -44,8 +44,10 @@ the ticket's category first, then the lightest workload (points: Critical 4, Hig
 random only between equal candidates. If every technician is free the ticket waits in the queue for
 anyone to claim; unclaimed tickets are assigned after a per-priority wait (default Critical 30 min,
 High 2 h, Medium 4 h, Low 12 h). The reason is written to the ticket history and the audit trail.
-Admins configure it under **Administration → Auto-Assignment** (switch on/off, limits, *Run auto-assign
-now*) and set technician skills on the user's edit page. Technicians mark themselves **Available/Away**
+Every available technician is notified about each new ticket (with how many tickets are waiting in the
+queue); administrators are only asked to act when nobody can take a ticket ("Needs assignment").
+It runs on its own with sensible defaults; admins can change it under **Administration →
+Auto-Assignment** (switch on/off, limits) and set technician skills on the user's edit page. Technicians mark themselves **Available/Away**
 (with note and "back on" date, after which they return automatically); admins are warned about
 away technicians who still hold open tickets. CLI for cron: `flask auto-assign [--now]`.
 
@@ -215,7 +217,7 @@ powershell -ExecutionPolicy Bypass -File scripts\run_tests_mysql.ps1 -q      # s
 | `test_dashboards.py` | dashboard numbers equal database counts, trends, empty states |
 | `test_security.py` | CSRF, headers, cookies, secret exposure, fail-closed production config, SQL-injection inputs |
 | `test_pages.py` | crawls every reachable page for each role (no server errors, no dead links) |
-| `test_assignment.py` | auto-assignment rules (least busy, specialists, away, maximum, queue wait, run-now), settings limits 1–50, availability, CSAT ratings |
+| `test_assignment.py` | auto-assignment rules (least busy, specialists, away, maximum, queue wait), team notifications, settings limits 1–50, availability, CSAT ratings |
 
 The suite ignores your local `.env` (`CLOUDOPS_SKIP_DOTENV=1`) so results do not depend on local settings.
 
