@@ -102,8 +102,9 @@ def test_production_config_is_hardened(monkeypatch, tmp_path):
 def test_seed_command_refused_in_production(monkeypatch, tmp_path):
     monkeypatch.setenv('DATABASE_URL', f"sqlite:///{(tmp_path / 'p.db').as_posix()}")
     app = create_app('production', config_overrides={'SECRET_KEY': 'p' * 48, 'UPLOAD_FOLDER': str(tmp_path)})
-    result = app.test_cli_runner().invoke(args=['seed-db'])
-    assert result.exit_code != 0 and 'disabled in production' in result.output
+    for args in (['seed-db'], ['reset-demo', '--yes']):
+        result = app.test_cli_runner().invoke(args=args)
+        assert result.exit_code != 0 and 'disabled in production' in result.output, args
     with app.app_context():
         db.engine.dispose()
 

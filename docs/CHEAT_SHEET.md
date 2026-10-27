@@ -5,6 +5,14 @@
   certificate, still encrypted). Demo buttons work as before. Don't stop the instance (the IP would change).
 - AWS console: sign in as **root user** (your email + password + Microsoft Authenticator code) →
   region **Asia Pacific (Mumbai)**.
+- **About 30 minutes before presenting: reset the demo data** (fresh ticket times, practice data
+  removed, ticket numbers from INC-2026-00001 again). EC2 → cloudops360-web → **Connect → EC2
+  Instance Connect** → paste (right-click → Paste):
+```bash
+sudo bash /opt/cloudops360/infrastructure/aws/reset_demo_data.sh
+```
+  It ends with "[reset] Done". Only INC-2026-00005 is overdue (on purpose); the rest stay on time for
+  at least 2 hours. Laptop backup: `.venv\Scripts\flask reset-demo`.
 - What to show for each lab:
 
 | Lab | Console page | Point at |

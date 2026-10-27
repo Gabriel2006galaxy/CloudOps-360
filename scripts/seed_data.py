@@ -3,6 +3,8 @@
 * seed_reference_data(): categories + SLA policies. Creates no users; safe anywhere.
 * seed_database():       reference data + DEVELOPMENT demo accounts and incidents.
                           Run explicitly with `flask seed-db`; refused in production.
+* reset_demo_data():     puts a DEMO database back to its starting state with ticket
+                          times counted from now (`flask reset-demo`, before a presentation).
 
 Demo incidents are inserted as real database rows (with SLA targets, history,
 comments and an internal note) so dashboards show genuine computed metrics.
@@ -12,8 +14,8 @@ from datetime import timedelta
 
 from app.extensions import db
 from app.models import (
-    AuditLog, Comment, SLAPolicy, Ticket, TicketCategory, TicketPriority, TicketStatus,
-    TicketStatusHistory, User, UserRole, utcnow,
+    Attachment, AuditLog, Comment, LoginAttempt, Notification, SLAPolicy, SystemSetting, Ticket, TicketCategory,
+    TicketPriority, TicketStatus, TicketStatusHistory, User, UserRole, utcnow,
 )
 from app.services.sla import calculate_sla_due_dates
 
@@ -43,13 +45,15 @@ DEMO_USERS = [
 ]
 
 # title, description, category index, priority, final status, creator, technician, affected system, hours ago, resolve hours (None=open)
+# Right after seeding only "Legacy S3 bucket" is overdue (on purpose); the other open tickets are within their SLA
+# for at least two hours, and the two queued tickets wait for a technician to claim them.
 DEMO_TICKETS = [
     ("Production web tier CPU saturation and 504 errors",
      "CloudWatch alarm: web tier EC2 instances above 92% CPU. Customers receive HTTP 504 from the checkout API.",
-     0, TicketPriority.CRITICAL, TicketStatus.IN_PROGRESS, 'emp_jordan', 'tech_sarah', 'ec2-prod-web-asg', 2, None),
+     0, TicketPriority.CRITICAL, TicketStatus.IN_PROGRESS, 'emp_jordan', 'tech_sarah', 'ec2-prod-web-asg', 1, None),
     ("Branch office VPN tunnel fails to establish",
      "Remote office cannot complete IPsec phase 2 negotiation with the virtual private gateway since 08:00.",
-     1, TicketPriority.HIGH, TicketStatus.ASSIGNED, 'emp_elena', 'tech_marcus', 'vpn-gw-branch-03', 3, None),
+     1, TicketPriority.HIGH, TicketStatus.ASSIGNED, 'emp_elena', 'tech_marcus', 'vpn-gw-branch-03', 1, None),
     ("RDS read replica lag above 180 seconds",
      "Reporting replica shows replication lag of ~245s during nightly ETL, delaying invoice generation.",
      3, TicketPriority.MEDIUM, TicketStatus.OPEN, 'emp_jordan', None, 'rds-mysql-replica-01', 1, None),
@@ -221,3 +225,69 @@ def seed_database(with_demo_tickets=True):
     for username, _, _, role, _, password in DEMO_USERS:
         print(f"  {role:<11} {username:<12} / {password}")
     print("=============================================================\n")
+
+
+def reset_demo_data():
+    """Puts a DEMO database back to its starting state, with ticket times counted from now.
+
+    Deletes every ticket (with its comments, history and attachment files), notification,
+    audit entry, sign-in attempt and setting; removes users and categories that are not
+    part of the demo; resets the demo accounts, technician skills and SLA targets; then
+    creates the demo incidents again. Development / demo databases only.
+    """
+    from app.services.storage import get_storage
+
+    storage = get_storage()
+    files = [att.storage_path for att in Attachment.query.all()]
+    for model in (Notification, Comment, Attachment, TicketStatusHistory, Ticket, AuditLog, LoginAttempt,
+                  SystemSetting):
+        model.query.delete(synchronize_session=False)
+    db.session.commit()
+    db.session.expunge_all()  # forget deleted rows so the new tickets can reuse their ids
+    for key in files:
+        storage.delete(key)
+
+    demo_usernames = {row[0] for row in DEMO_USERS}
+    for user in User.query.filter(User.username.notin_(demo_usernames)).all():
+        user.skills = []
+        db.session.delete(user)
+    db.session.flush()
+    for username, email, full_name, role, dept, password in DEMO_USERS:
+        user = User.query.filter_by(username=username).first() or User(username=username)
+        user.email, user.full_name, user.role, user.department = email, full_name, role, dept
+        user.is_active, user.last_login_at = True, None
+        user.is_available, user.away_note, user.away_until = True, None, None
+        user.leave_requested_at, user.leave_note, user.leave_until = None, None, None
+        user.skills = []
+        user.set_password(password)
+        db.session.add(user)
+    db.session.flush()
+
+    demo_categories = dict(CATEGORIES)
+    for cat in TicketCategory.query.all():
+        if cat.name in demo_categories:
+            cat.description, cat.is_active = demo_categories[cat.name], True
+        else:
+            db.session.delete(cat)
+    for priority, resp, resol, desc in SLA_POLICIES:
+        policy = SLAPolicy.query.filter_by(priority=priority).first()
+        if policy:
+            policy.response_time_hours, policy.resolution_time_hours, policy.description = resp, resol, desc
+    db.session.commit()
+
+    # Ticket numbers start again at INC-YYYY-00001 (the demo script refers to them)
+    if db.engine.dialect.name == 'mysql':
+        for table in ('tickets', 'comments', 'attachments', 'ticket_status_history', 'notifications',
+                      'audit_logs', 'login_attempts'):
+            db.session.execute(db.text(f'ALTER TABLE {table} AUTO_INCREMENT = 1'))
+        db.session.commit()
+
+    categories = seed_reference_data()
+    users = {u.username: u for u in User.query.filter(User.username.in_(demo_usernames)).all()}
+    _seed_skills(categories, users)
+    _seed_tickets(categories, users)
+    db.session.add(AuditLog(user_id=users['admin'].id, action='SYSTEM_DEMO_RESET', entity_type='System',
+                            entity_id='seed', details='Demo data reset to its starting state via flask reset-demo'))
+    db.session.commit()
+    print(f"[Reset] Demo data restored: {len(DEMO_USERS)} accounts, {len(DEMO_TICKETS)} incidents, "
+          f"ticket times counted from now; {len(files)} attachment file(s) removed.")

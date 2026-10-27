@@ -270,6 +270,19 @@ def register_commands(app):
         seed_database(with_demo_tickets=with_demo_tickets)
         click.echo('[CloudOps 360] Database seeded with development data.')
 
+    @app.cli.command('reset-demo')
+    @click.option('--yes', is_flag=True, help='Do not ask for confirmation.')
+    def reset_demo_command(yes):
+        """Put the DEMO data back to its starting state, ticket times counted from now (refused in production)."""
+        if app.config.get('ENV_NAME') == 'production':
+            raise click.ClickException('reset-demo deletes all tickets and is disabled in production.')
+        if not yes:
+            click.confirm('This deletes ALL tickets, comments, attachments, notifications and audit entries, '
+                          'and resets the demo accounts. Continue?', abort=True)
+        from scripts.seed_data import reset_demo_data
+        reset_demo_data()
+        click.echo('[CloudOps 360] Demo data reset.')
+
     @app.cli.command('seed-reference-data')
     def seed_reference_command():
         """Seed only categories and SLA policies (safe for production; creates no users)."""

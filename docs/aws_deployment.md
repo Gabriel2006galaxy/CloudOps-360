@@ -59,7 +59,9 @@ to the env file, runs `flask db upgrade` and `flask seed-reference-data`, and st
 cd /opt/cloudops360
 sudo -u cloudops bash -c 'set -a; . /etc/cloudops360/cloudops360.env; set +a; .venv/bin/flask create-admin'
 ```
-`flask seed-db` (demo accounts) is **refused** when `FLASK_ENV=production`.
+`flask seed-db` (demo accounts) is **refused** when `FLASK_ENV=production`. On a demo server,
+`sudo bash infrastructure/aws/reset_demo_data.sh` puts the demo data back to its starting state with fresh
+ticket times (run it shortly before a presentation; it deletes all tickets).
 
 ### 1.5 Check
 ```bash

@@ -8,8 +8,8 @@
 | | |
 | :--- | :--- |
 | **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
-| **Tests** | 145 pytest tests — passing on SQLite **and** MySQL 8.0 |
-| **Status** | Application complete and verified locally (145 tests). **All three labs are verified live on AWS** (own AWS account, Mumbai, since 2026-10-24): EC2 + Nginx + Gunicorn, Amazon RDS for MySQL (private, encrypted, TLS), Amazon EFS (encrypted, TLS), IAM role, Secrets Manager and HTTPS; `verify_deployment.sh` all PASS — see [What still needs your action](#11-what-still-needs-your-action-aws). |
+| **Tests** | 146 pytest tests — passing on SQLite **and** MySQL 8.0 |
+| **Status** | Application complete and verified locally (146 tests). **All three labs are verified live on AWS** (own AWS account, Mumbai, since 2026-10-24): EC2 + Nginx + Gunicorn, Amazon RDS for MySQL (private, encrypted, TLS), Amazon EFS (encrypted, TLS), IAM role, Secrets Manager and HTTPS; `verify_deployment.sh` all PASS — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
 Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
 [AWS deployment guide](docs/aws_deployment.md) · [Architecture](docs/architecture.md) ·
@@ -193,6 +193,7 @@ Never commit `.env`. It is gitignored, and so are `*.db`, `uploads/` and `instan
 .venv\Scripts\flask db migrate -m "message"    # after changing models (review the generated file)
 .venv\Scripts\flask db check                   # models and migrations in sync?
 .venv\Scripts\flask seed-db                    # dev demo data (refused in production)
+.venv\Scripts\flask reset-demo                 # demo data back to the start, fresh ticket times (refused in production)
 .venv\Scripts\flask seed-reference-data        # categories + SLA policies only (safe in production)
 .venv\Scripts\flask create-admin               # interactive admin creation (production)
 .venv\Scripts\flask storage-check              # verify every attachment file + SHA-256

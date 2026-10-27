@@ -11,7 +11,7 @@ AWS verification (2026-10-24, own AWS account, ap-south-1): Labs 1–3 live; `ve
 CloudShell evidence: RDS encrypted and not public, EFS encrypted, 3306/2049 only from the web security group,
 SSH only from EC2 Instance Connect, IAM policy limited to 2 secrets and 1 file system.
 
-Latest local verification (2026-10-25): `pytest` 145 passed on SQLite and 145 passed on MySQL 8.0.43;
+Latest local verification (2026-10-28): `pytest` 146 passed on SQLite and 146 passed on MySQL 8.0.43;
 migration `c3f1a9d27e64` upgraded/downgraded/re-upgraded on MySQL and `flask db check` clean; new
 auto-assignment, availability and rating pages checked in the browser.
 
@@ -31,7 +31,7 @@ and 375 px in dark and light themes.
 | Amazon RDS for MySQL | ☑️ | live since 2026-10-24 (own AWS account, Mumbai): MySQL 8.4, not public, encrypted, app user `REQUIRE SSL`; `verify_deployment.sh` all PASS |
 | Amazon EFS | ☑️ | live: encrypted, TLS mount with the instance role, `/health` reports storage `efs` |
 | IAM instance role, least privilege, Secrets Manager | ☑️ | live: role attached, no keys, DB credentials and session key from Secrets Manager (`security_checklist.md` W1–W3) |
-| Git/GitHub, pytest | ✅ | GitHub `main`; 145 tests |
+| Git/GitHub, pytest | ✅ | GitHub `main`; 146 tests |
 | Docker Compose for local dev | ⚠️ | file updated (no hard-coded passwords) but **not run** — Docker is not installed on the dev machine; local MySQL 8.0 service used instead |
 
 ## 2. UI/UX
@@ -130,7 +130,7 @@ and 375 px in dark and light themes.
 | Local dev configuration | ✅ | `.env.example`, `scripts/setup_local_mysql.ps1` |
 | EFS storage integration | ✅ code / ☑️ AWS | `services/storage.py` |
 | AWS deployment config/scripts | ☑️ | `infrastructure/aws/` (fast path: `cloudshell_lab2_lab3.sh` + `server_lab2_lab3.sh`) |
-| Automated tests | ✅ | `tests/` (145) |
+| Automated tests | ✅ | `tests/` (146) |
 | README | ✅ | `README.md` |
 | AWS architecture diagram | ✅ | `docs/architecture.md` |
 | ER diagram | ✅ | `docs/database_er.md` |

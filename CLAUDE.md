@@ -10,8 +10,8 @@ Student AWS Cloud Computing Lab project (Flask + MySQL + Bootstrap/Chart.js, thr
 - `docs/aws_deployment.md` — Lab 1/2/3 AWS guide; `infrastructure/aws/` — all deployment scripts.
 - `demo_files/` — screenshot + log (accepted uploads) and `fake.png` (rejected on purpose).
 
-## State of the project (as of 2026-10-25)
-- App complete; 145 pytest tests pass locally on SQLite and MySQL 8.0 (`.venv\Scripts\python -m pytest -q`).
+## State of the project (as of 2026-10-28)
+- App complete; 146 pytest tests pass locally on SQLite and MySQL 8.0 (`.venv\Scripts\python -m pytest -q`).
 - Added 2026-10-24: auto-assignment (ON by default; least busy available technician, specialists first, weighted points, max open per technician default 10 / admin 1–50, queue + claim when every technician is free, per-priority wait then auto-assign on its own — no admin button, by request; technicians notified of every new ticket with queue count; admins alerted only when nobody can take a ticket), technician Available/Away status, technician skills, CSAT star ratings. Migration `c3f1a9d27e64`; 12 tables.
 - Added 2026-10-25 (Gabriel's request): technicians cannot set themselves Away; they send a leave request, an admin approves/rejects it on the dashboard (only approval makes them Away). Migration `d4b2e8f13a57` (users.leave_*).
 - Local dev: Windows, MySQL80 service, `.env` created by `scripts/setup_local_mysql.ps1` (gitignored), run with `.venv\Scripts\python run.py`.
@@ -24,6 +24,7 @@ Student AWS Cloud Computing Lab project (Flask + MySQL + Bootstrap/Chart.js, thr
 - The Sandbox is now only a backup (Lab 1). Gabriel later created an own Free-plan account (no auto-pay; never upgrade to a paid plan).
 - Deployment method: paste the 2-line **User data** at launch → `infrastructure/aws/user_data_demo.sh` installs everything from the latest GitHub `main` in ~2–10 minutes (bootstrap, MariaDB, schema, `seed-db` demo data in development mode, `SHOW_DEMO_ACCOUNTS=true`). Tested end-to-end on 2026-10-20.
 - Update a running server: `sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main` (git runs as the `cloudops` user — root hits "dubious ownership").
+- Demo data ages (open tickets go overdue, queued tickets get auto-assigned after their wait time). Before a presentation run `sudo bash /opt/cloudops360/infrastructure/aws/reset_demo_data.sh` (= `flask reset-demo`, refused in production): deletes all tickets and practice data, resets demo accounts/SLA/settings, reseeds with times from now; only INC-2026-00005 is overdue on purpose.
 - EC2 Instance Connect quirks: Ctrl+Shift+V pastes twice (use right-click → Paste); connections drop occasionally (reconnect); expired session → "voc-cancel-cred" errors / "You must first log out" page.
 - The grey terminal on the Sandbox page is AWS Academy's helper machine, not the EC2 server.
 
