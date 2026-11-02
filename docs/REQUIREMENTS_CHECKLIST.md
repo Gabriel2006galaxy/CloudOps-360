@@ -32,7 +32,7 @@ and 375 px in dark and light themes.
 | Amazon EFS | ☑️ | live: encrypted, TLS mount with the instance role, `/health` reports storage `efs` |
 | IAM instance role, least privilege, Secrets Manager | ☑️ | live: role attached, no keys, DB credentials and session key from Secrets Manager (`security_checklist.md` W1–W3) |
 | Git/GitHub, pytest | ✅ | GitHub `main`; 153 tests |
-| Docker Compose for local dev | ⚠️ | file updated (no hard-coded passwords) but **not run** — Docker is not installed on the dev machine; local MySQL 8.0 service used instead |
+| Docker containerization | ☑️ | image built and container running on EC2 (2026-11-02, `docker_demo.sh`): `/health` from inside the container = healthy, RDS connected, EFS mounted; Compose for local dev not run (no Docker on the laptop) |
 
 ## 2. UI/UX
 | Requirement | Status | Evidence / note |

@@ -177,7 +177,13 @@ flask db upgrade && flask seed-db && python run.py
 # or run everything in containers:
 docker compose up --build               # app on http://127.0.0.1:5000
 ```
-*Docker was not available on the development machine, so the compose file has not been run.*
+*Docker is not installed on the development laptop, so the compose file has not been run there.*
+
+**Docker on AWS (verified 2026-11-02):** `sudo bash infrastructure/aws/docker_demo.sh` installs Docker on the EC2
+server, builds the `cloudops360` image from the `Dockerfile` (python:3.12-slim, Gunicorn, non-root user, health
+check, about 232 MB; `.dockerignore` keeps `.env`, databases and uploads out) and runs it as a container next to the
+live site on 127.0.0.1:8080, with the same RDS, EFS and IAM-role credentials. `docker_demo.sh show` prints the
+image, the container (healthy) and its `/health` answer for a demonstration; `docker_demo.sh stop` removes it.
 
 ## 5. Configuration
 

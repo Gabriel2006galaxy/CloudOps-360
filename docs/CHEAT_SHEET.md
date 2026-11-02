@@ -25,10 +25,15 @@ sudo bash /opt/cloudops360/infrastructure/aws/reset_demo_data.sh
 | 3 | **Browser 🔒** | https, http → https redirect |
 | 2+3 | **Proof report** (server terminal, see below) | every line **PASS** |
 | 2+3 | **In the app: admin → System Status** | green chips EC2, RDS, EFS, IAM role, Secrets Manager, HTTPS |
+| Docker | **Server terminal:** `docker_demo.sh show` (below) | image cloudops360, container **(healthy)**, database connected |
 
 Proof report: EC2 → cloudops360-web → **Connect → EC2 Instance Connect** → paste:
 ```bash
 sudo bash /opt/cloudops360/infrastructure/aws/verify_deployment.sh | grep -E "^(PASS|FAIL)"
+```
+Show Docker (the app as a container, running next to the live site):
+```bash
+sudo bash /opt/cloudops360/infrastructure/aws/docker_demo.sh show
 ```
 Show the database (RDS) and the files (EFS) when ma'am asks:
 ```bash
