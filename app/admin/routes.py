@@ -405,6 +405,15 @@ def audit_logs():
                            actions=actions, users=User.query.order_by(User.username).all())
 
 
+@admin_bp.route('/system-status')
+@login_required
+@admin_required
+def system_status():
+    """Live, read-only view of the AWS setup and security settings (no secret values)."""
+    from app.services.system_status import collect_status
+    return render_template('admin/system_status.html', status=collect_status())
+
+
 @admin_bp.route('/audit-logs/export.csv', methods=['GET'])
 @login_required
 @admin_required

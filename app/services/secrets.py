@@ -76,11 +76,14 @@ def resolve_runtime_secrets(app):
     region = cfg.get('AWS_REGION', 'us-east-1')
 
     # ---- Flask SECRET_KEY ----
+    # *_SOURCE records where each secret came from (never the value) for the System Status page
+    cfg['SECRET_KEY_SOURCE'] = 'environment variable' if cfg.get('SECRET_KEY') else None
     if cfg.get('APP_SECRET_NAME'):
         try:
             value = fetch_secret_value(cfg['APP_SECRET_NAME'], 'SECRET_KEY', region)
             if value:
                 cfg['SECRET_KEY'] = value
+                cfg['SECRET_KEY_SOURCE'] = f"AWS Secrets Manager ({cfg['APP_SECRET_NAME']})"
                 app.logger.info("[Secrets] SECRET_KEY loaded from AWS Secrets Manager.")
         except Exception as exc:  # noqa: BLE001 - boto raises many types
             if production:
@@ -91,18 +94,21 @@ def resolve_runtime_secrets(app):
         if production:
             raise SecretResolutionError('SECRET_KEY is not set. Provide it via APP_SECRET_NAME or the environment.')
         cfg['SECRET_KEY'] = cfg.get('DEV_FALLBACK_SECRET_KEY', os.urandom(32).hex())
+        cfg['SECRET_KEY_SOURCE'] = 'development fallback (insecure)'
         app.logger.warning("[Secrets] Using the insecure development SECRET_KEY. Never do this in production.")
     elif production and len(cfg['SECRET_KEY']) < 32:
         raise SecretResolutionError('SECRET_KEY must be at least 32 characters in production.')
 
     # ---- Database URI ----
     if cfg.get('SQLALCHEMY_DATABASE_URI'):
+        cfg['DB_CREDENTIALS_SOURCE'] = 'application configuration'
         return  # explicitly configured (tests)
 
     uri = None
     if cfg.get('DB_SECRET_NAME'):
         try:
             uri = fetch_secret_database_uri(cfg['DB_SECRET_NAME'], region)
+            cfg['DB_CREDENTIALS_SOURCE'] = f"AWS Secrets Manager ({cfg['DB_SECRET_NAME']})"
         except Exception as exc:  # noqa: BLE001
             if production:
                 raise SecretResolutionError(
@@ -112,11 +118,13 @@ def resolve_runtime_secrets(app):
 
     if not uri:
         uri = os.environ.get('DATABASE_URL')
+        cfg['DB_CREDENTIALS_SOURCE'] = 'DATABASE_URL environment variable'
 
     if not uri:
         if cfg.get('ALLOW_SQLITE_FALLBACK') and not production:
             base_dir = os.path.abspath(os.path.join(app.root_path, '..'))
             uri = f"sqlite:///{os.path.join(base_dir, 'cloudops360.db')}"
+            cfg['DB_CREDENTIALS_SOURCE'] = 'local SQLite fallback'
             app.logger.warning(
                 "[Database] DATABASE_URL is not set - using local SQLite fallback. "
                 "Configure MySQL in .env to match the RDS production engine."

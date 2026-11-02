@@ -128,7 +128,7 @@
   <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold"><i class="bi bi-shield-shaded text-info me-2" aria-hidden="true"></i>Recent audit events</h2><a href="{{ url_for('admin.audit_logs') }}" class="btn btn-sm btn-outline-secondary">Audit trail</a></div>
   <div class="table-responsive">
     <table class="table table-premium align-middle small">
-      <thead><tr><th scope="col">Time (UTC)</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Details</th></tr></thead>
+      <thead><tr><th scope="col">Time ({{ display_tz }})</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Details</th></tr></thead>
       <tbody>
         {% for log in m.recent_audits %}
         <tr>

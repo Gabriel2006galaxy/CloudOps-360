@@ -106,16 +106,16 @@
           <th scope="col">Assignee</th>
           <th scope="col">{{ sort_header('Priority', 'priority', filters) }}</th>
           <th scope="col">{{ sort_header('Status', 'status', filters) }}</th>
-          <th scope="col" style="min-width: 150px;">{{ sort_header('SLA', 'resolution_due_at', filters) }}</th>
+          <th scope="col" style="min-width: 120px;">{{ sort_header('SLA', 'resolution_due_at', filters) }}</th>
           <th scope="col">{{ sort_header('Created', 'created_at', filters) }}</th>
         </tr>
       </thead>
       <tbody>
         {% for t in tickets %}
-        <tr class="{% if t.is_overdue %}table-danger-subtle{% endif %}">
+        <tr class="row-link{% if t.is_overdue %} table-danger-subtle{% endif %}" data-href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}">
           <td class="text-nowrap"><a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="fw-bold text-info text-decoration-none font-monospace">{{ t.reference_id }}</a></td>
           <td>
-            <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="fw-semibold text-body text-decoration-none d-block text-truncate" style="max-width: 300px;" title="{{ t.title }}">{{ t.title }}</a>
+            <a href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}" class="fw-semibold text-body text-decoration-none cell-title" title="{{ t.title }}">{{ t.title }}</a>
             <small class="text-muted">{{ t.category.name }}</small>
           </td>
           <td><div class="small fw-medium">{{ t.creator.full_name }}</div><small class="text-muted">{{ t.department or '—' }}</small></td>

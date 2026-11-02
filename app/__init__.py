@@ -79,19 +79,27 @@ def warn_if_database_not_ready(app):
 
 
 def register_template_helpers(app):
+    from datetime import timedelta
     from app.models import as_utc
 
+    # Stored in UTC, shown in the configured zone (default IST, UTC+5:30)
+    offset_minutes = app.config.get('DISPLAY_UTC_OFFSET_MINUTES', 0)
+    tz_name = app.config.get('DISPLAY_TIMEZONE_NAME', 'UTC')
+    display_tz = timezone(timedelta(minutes=offset_minutes), tz_name)
+    sign, (hours, minutes) = ('+' if offset_minutes >= 0 else '-'), divmod(abs(offset_minutes), 60)
+    tz_label = f"{tz_name} (UTC{sign}{hours}:{minutes:02d})" if offset_minutes else 'UTC'
+
     @app.template_filter('datetimeformat')
-    def datetimeformat(value, format='%b %d, %Y %H:%M UTC'):
+    def datetimeformat(value, format='%b %d, %Y %H:%M %Z'):
         if value is None:
             return '—'
-        return as_utc(value).strftime(format)
+        return as_utc(value).astimezone(display_tz).strftime(format)
 
     @app.template_filter('dateformat')
     def dateformat(value, format='%b %d, %Y'):
         if value is None:
             return '—'
-        return as_utc(value).strftime(format)
+        return as_utc(value).astimezone(display_tz).strftime(format)
 
     @app.template_filter('isoformat')
     def isoformat(value):
@@ -128,6 +136,8 @@ def register_template_helpers(app):
             'unread_notifications_count': unread_count,
             'recent_notifications': user_notifications,
             'current_year': datetime.now(timezone.utc).year,
+            'display_tz': tz_name,
+            'display_tz_label': tz_label,
             'allow_registration': app.config.get('ALLOW_SELF_REGISTRATION', False),
             'show_demo_accounts': app.config.get('SHOW_DEMO_ACCOUNTS', False),
             'session_idle_minutes': app.config.get('SESSION_IDLE_TIMEOUT_MINUTES', 30),
@@ -361,6 +371,18 @@ def register_commands(app):
         for ticket, reason in waiting:
             click.echo(f"  WAITING   {ticket.reference_id}: {reason}")
         click.echo(f"Summary: {len(assigned)} assigned, {len(waiting)} still waiting")
+
+    @app.cli.command('sla-check')
+    def sla_check_command():
+        """Warn about tickets close to their SLA deadline and escalate breached ones (for cron)."""
+        from app.services.escalation import run_sla_escalation
+        warned, escalated = run_sla_escalation()
+        db.session.commit()
+        for ticket in warned:
+            click.echo(f"  WARNED     {ticket.reference_id} ({ticket.priority})")
+        for ticket in escalated:
+            click.echo(f"  ESCALATED  {ticket.reference_id} ({ticket.priority})")
+        click.echo(f"Summary: {len(warned)} warned, {len(escalated)} escalated")
 
     @app.cli.command('purge-login-attempts')
     @click.option('--days', default=30, show_default=True)

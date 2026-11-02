@@ -62,6 +62,7 @@ sudo -u cloudops bash -c 'set -a; . /etc/cloudops360/cloudops360.env; set +a; .v
 `flask seed-db` (demo accounts) is **refused** when `FLASK_ENV=production`. On a demo server,
 `sudo bash infrastructure/aws/reset_demo_data.sh` puts the demo data back to its starting state with fresh
 ticket times (run it shortly before a presentation; it deletes all tickets).
+`sudo bash infrastructure/aws/show_database.sh` prints (read-only) what is stored in RDS and the files on EFS.
 
 ### 1.5 Check
 ```bash

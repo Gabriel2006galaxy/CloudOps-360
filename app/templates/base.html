@@ -87,6 +87,9 @@
         <a href="{{ url_for('admin.audit_logs') }}" class="sidebar-link {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}">
           <i class="bi bi-journal-text" aria-hidden="true"></i><span>Audit Trail</span>
         </a>
+        <a href="{{ url_for('admin.system_status') }}" class="sidebar-link {% if request.endpoint == 'admin.system_status' %}active{% endif %}">
+          <i class="bi bi-cloud-check" aria-hidden="true"></i><span>System Status</span>
+        </a>
         {% endif %}
       </nav>
 
@@ -208,7 +211,7 @@
         <div><strong>CloudOps 360</strong> — {{ app_tagline }} &copy; {{ current_year }}</div>
         <div class="d-flex flex-wrap gap-3">
           <span><i class="bi bi-shield-lock text-success me-1" aria-hidden="true"></i>Role-based access</span>
-          <span><i class="bi bi-clock text-info me-1" aria-hidden="true"></i>All times UTC</span>
+          <span><i class="bi bi-clock text-info me-1" aria-hidden="true"></i>All times {{ display_tz_label }}</span>
         </div>
       </footer>
     </div>

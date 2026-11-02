@@ -41,6 +41,9 @@ def apply_sla_to_ticket(ticket, start_time=None, response=True):
     if response:
         ticket.response_due_at = resp_due
     ticket.resolution_due_at = resol_due
+    # A new deadline starts the warning / escalation cycle again
+    ticket.sla_warning_sent_at = None
+    ticket.escalated_at = None
 
 
 def overdue_filter(query):

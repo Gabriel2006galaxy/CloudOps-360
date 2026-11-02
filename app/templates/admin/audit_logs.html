@@ -55,7 +55,7 @@
 <div class="card card-premium">
   <div class="table-responsive">
     <table class="table table-premium align-middle small">
-      <thead><tr><th scope="col">Time (UTC)</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Entity</th><th scope="col">Details</th><th scope="col">IP</th></tr></thead>
+      <thead><tr><th scope="col">Time ({{ display_tz }})</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Entity</th><th scope="col">Details</th><th scope="col">IP</th></tr></thead>
       <tbody>
         {% for log in logs %}
         <tr>

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}System Status{% endblock %}
+
+{% block page_header %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb breadcrumb-premium">
+  <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+  <li class="breadcrumb-item active" aria-current="page">System status</li>
+</ol></nav>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <div>
+    <h1 class="page-title fw-bold brand-font mb-1">System Status</h1>
+    <p class="text-muted small mb-0">Live, read-only check of where CloudOps 360 runs and how it is protected. Secret values are never shown — only where they come from. Checked {{ status.checked_at|datetimeformat }}.</p>
+  </div>
+  <a href="{{ url_for('admin.system_status') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Check again</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card card-premium p-4 mb-4">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div>
+      <h2 class="h6 fw-bold mb-1"><i class="bi bi-cloud-check text-info me-2" aria-hidden="true"></i>{% if status.on_aws %}Running on Amazon Web Services{% else %}Running on a local computer{% endif %}</h2>
+      <p class="small text-muted mb-0">{% if status.warnings %}{{ status.warnings }} item{{ 's' if status.warnings != 1 }} need{{ 's' if status.warnings == 1 }} attention (yellow).{% else %}All checks passed.{% endif %}</p>
+    </div>
+    <ul class="list-unstyled d-flex flex-wrap gap-2 mb-0" aria-label="AWS services in use">
+      {% for name, active in status.services %}
+      <li><span class="badge rounded-pill {% if active %}status-chip-ok{% else %}status-chip-off{% endif %}">
+        <i class="bi {% if active %}bi-check-circle-fill{% else %}bi-dash-circle{% endif %} me-1" aria-hidden="true"></i>{{ name }}<span class="visually-hidden">: {{ 'in use' if active else 'not in use' }}</span></span></li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="row g-4">
+  {% for section in status.sections %}
+  <div class="col-lg-6">
+    <section class="card card-premium h-100" aria-labelledby="status-{{ loop.index }}">
+      <div class="card-header-premium"><h2 class="h6 mb-0 fw-bold" id="status-{{ loop.index }}"><i class="bi {{ section.icon }} text-info me-2" aria-hidden="true"></i>{{ section.title }}</h2></div>
+      <dl class="status-list mb-0">
+        {% for c in section.checks %}
+        <div class="status-row">
+          <dt>{{ c.label }}</dt>
+          <dd><span class="status-dot status-{{ c.state }}" aria-hidden="true"></span><span class="visually-hidden">{{ {'ok': 'OK', 'warn': 'Attention', 'info': 'Info'}[c.state] }}: </span>{{ c.value }}</dd>
+        </div>
+        {% endfor %}
+        {% if section.title == 'Database' %}
+        {% for name, n in status.counts.items() %}
+        <div class="status-row"><dt>{{ name }} stored</dt><dd><span class="status-dot status-info" aria-hidden="true"></span>{{ n }}</dd></div>
+        {% endfor %}
+        {% endif %}
+      </dl>
+    </section>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

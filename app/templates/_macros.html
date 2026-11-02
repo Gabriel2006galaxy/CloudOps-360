@@ -13,6 +13,7 @@
 <div class="small {% if ticket.is_overdue %}text-danger fw-semibold{% elif ticket.is_resolved %}{% if ticket.resolution_met_sla == False %}text-warning{% else %}text-success{% endif %}{% else %}text-muted-2{% endif %}"
      {% if ticket.resolution_due_at %}title="Resolution due {{ ticket.resolution_due_at|datetimeformat }}"{% endif %}>
   {% if ticket.is_overdue %}<i class="bi bi-alarm me-1" aria-hidden="true"></i>{% endif %}{{ ticket.time_remaining_display }}
+  {%- if ticket.is_escalated %} <span class="badge bg-danger-subtle text-danger border border-danger-subtle" title="Escalated to the administrators {{ ticket.escalated_at|datetimeformat }}">Escalated</span>{% endif %}
 </div>
 {% if show_bar and ticket.resolution_due_at and not ticket.is_resolved %}
 <div class="sla-bar mt-1 {% if pct >= 100 %}breach{% elif pct >= 75 %}warn{% endif %}" role="progressbar" aria-label="SLA time used" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100"><span style="width: {{ pct }}%"></span></div>

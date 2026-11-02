@@ -17,6 +17,7 @@
       {{ status_badge(ticket.status) }}
       {% if ticket.is_overdue %}<span class="badge bg-danger overdue-pulse"><i class="bi bi-alarm me-1" aria-hidden="true"></i>SLA overdue</span>
       {% elif ticket.response_overdue %}<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Response overdue</span>{% endif %}
+      {% if ticket.is_escalated %}<span class="badge bg-danger-subtle text-danger border border-danger-subtle" title="The system alerted the administrators {{ ticket.escalated_at|datetimeformat }}"><i class="bi bi-megaphone-fill me-1" aria-hidden="true"></i>Escalated to admin</span>{% endif %}
     </div>
     <h1 class="page-title fw-bold brand-font mb-1">{{ ticket.title }}</h1>
     <div class="text-muted small">
@@ -272,6 +273,8 @@
         <dt class="col-6 text-muted fw-normal">First response</dt>
         <dd class="col-6">{% if ticket.first_responded_at %}{{ ticket.first_responded_at|datetimeformat('%b %d, %H:%M') }}{% elif ticket.response_overdue %}<span class="text-danger">Overdue</span>{% else %}Awaiting{% endif %}</dd>
         <dt class="col-6 text-muted fw-normal">Resolution due</dt><dd class="col-6">{{ ticket.resolution_due_at|datetimeformat('%b %d, %H:%M') }}</dd>
+        {% if ticket.sla_warning_sent_at and not ticket.escalated_at %}<dt class="col-6 text-muted fw-normal">SLA warning sent</dt><dd class="col-6 text-warning">{{ ticket.sla_warning_sent_at|datetimeformat('%b %d, %H:%M') }}</dd>{% endif %}
+        {% if ticket.escalated_at %}<dt class="col-6 text-muted fw-normal">Escalated</dt><dd class="col-6 text-danger">{{ ticket.escalated_at|datetimeformat('%b %d, %H:%M') }}</dd>{% endif %}
         {% if ticket.resolved_at %}<dt class="col-6 text-muted fw-normal">Resolved</dt><dd class="col-6">{{ ticket.resolved_at|datetimeformat('%b %d, %H:%M') }}</dd>{% endif %}
         {% if ticket.closed_at %}<dt class="col-6 text-muted fw-normal">Closed</dt><dd class="col-6">{{ ticket.closed_at|datetimeformat('%b %d, %H:%M') }}</dd>{% endif %}
       </dl>

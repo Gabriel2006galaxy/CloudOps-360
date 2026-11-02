@@ -11,7 +11,7 @@ AWS verification (2026-10-24, own AWS account, ap-south-1): Labs 1–3 live; `ve
 CloudShell evidence: RDS encrypted and not public, EFS encrypted, 3306/2049 only from the web security group,
 SSH only from EC2 Instance Connect, IAM policy limited to 2 secrets and 1 file system.
 
-Latest local verification (2026-10-28): `pytest` 146 passed on SQLite and 146 passed on MySQL 8.0.43;
+Latest local verification (2026-11-02): `pytest` 153 passed on SQLite and 153 passed on MySQL 8.0.43;
 migration `c3f1a9d27e64` upgraded/downgraded/re-upgraded on MySQL and `flask db check` clean; new
 auto-assignment, availability and rating pages checked in the browser.
 
@@ -31,7 +31,7 @@ and 375 px in dark and light themes.
 | Amazon RDS for MySQL | ☑️ | live since 2026-10-24 (own AWS account, Mumbai): MySQL 8.4, not public, encrypted, app user `REQUIRE SSL`; `verify_deployment.sh` all PASS |
 | Amazon EFS | ☑️ | live: encrypted, TLS mount with the instance role, `/health` reports storage `efs` |
 | IAM instance role, least privilege, Secrets Manager | ☑️ | live: role attached, no keys, DB credentials and session key from Secrets Manager (`security_checklist.md` W1–W3) |
-| Git/GitHub, pytest | ✅ | GitHub `main`; 146 tests |
+| Git/GitHub, pytest | ✅ | GitHub `main`; 153 tests |
 | Docker Compose for local dev | ⚠️ | file updated (no hard-coded passwords) but **not run** — Docker is not installed on the dev machine; local MySQL 8.0 service used instead |
 
 ## 2. UI/UX
@@ -130,7 +130,7 @@ and 375 px in dark and light themes.
 | Local dev configuration | ✅ | `.env.example`, `scripts/setup_local_mysql.ps1` |
 | EFS storage integration | ✅ code / ☑️ AWS | `services/storage.py` |
 | AWS deployment config/scripts | ☑️ | `infrastructure/aws/` (fast path: `cloudshell_lab2_lab3.sh` + `server_lab2_lab3.sh`) |
-| Automated tests | ✅ | `tests/` (146) |
+| Automated tests | ✅ | `tests/` (153) |
 | README | ✅ | `README.md` |
 | AWS architecture diagram | ✅ | `docs/architecture.md` |
 | ER diagram | ✅ | `docs/database_er.md` |
@@ -152,4 +152,7 @@ and 375 px in dark and light themes.
 | Every available technician notified about each new ticket, with the number waiting in the queue; admins alerted only when nobody can take a ticket | ✅ | `test_when_every_technician_is_free_the_ticket_waits_to_be_claimed`, `test_away_technicians_are_not_notified_about_new_tickets`, `test_maximum_open_tickets_per_technician` |
 | Reason shown in ticket history ("System (auto-assign)") and audit trail | ✅ | asserted in the tests above |
 | Safe with several workers/instances (conditional UPDATE) | ✅ | `test_assignment_is_applied_only_once` |
+| SLA escalation: warning at 75 % (technician, or admins if unassigned), admins + technician alerted on breach, "Escalated" badge, audit, once per deadline; `flask sla-check` | ✅ | `test_escalation.py` (4 tests; migration `e7a4c1d92b38`) |
+| Admin System Status page (EC2/IAM role, RDS + TLS, EFS + TLS, secret sources without values, HTTPS, security settings) | ✅ | `test_system_status_page_for_admins_only`; checked in the browser 2026-11-02 |
+| Times shown in IST; whole ticket row clickable; tables fit 1366 px screens | ✅ | `test_times_are_shown_in_ist`, `test_ticket_rows_open_the_ticket`; checked at 1366/1440/1640 px |
 | Customer satisfaction rating 1–5 stars by the reporter, once, after close; analytics average | ✅ | `test_reporter_rates_a_closed_ticket_once`, `test_rating_rules`, `test_satisfaction_metrics` |

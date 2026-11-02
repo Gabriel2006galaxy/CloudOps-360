@@ -32,14 +32,13 @@
       {% if m.active_tickets %}
       <div class="table-responsive">
         <table class="table table-premium align-middle">
-          <thead><tr><th scope="col">Reference</th><th scope="col">Title</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col">SLA</th></tr></thead>
+          <thead><tr><th scope="col">Reference</th><th scope="col">Title</th><th scope="col">Priority / Status</th><th scope="col">SLA</th></tr></thead>
           <tbody>
             {% for t in m.active_tickets %}
-            <tr class="{% if t.is_overdue %}table-danger-subtle{% endif %}">
+            <tr class="row-link{% if t.is_overdue %} table-danger-subtle{% endif %}" data-href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}">
               <td class="text-nowrap"><a class="fw-bold text-info text-decoration-none font-monospace" href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}">{{ t.reference_id }}</a></td>
-              <td><div class="text-truncate" style="max-width: 240px;" title="{{ t.title }}">{{ t.title }}</div><small class="text-muted">{{ t.creator.full_name }}</small></td>
-              <td>{{ priority_badge(t.priority) }}</td>
-              <td>{{ status_badge(t.status) }}</td>
+              <td><div class="cell-title" title="{{ t.title }}">{{ t.title }}</div><small class="text-muted">{{ t.creator.full_name }}</small></td>
+              <td class="cell-badges">{{ priority_badge(t.priority) }}{{ status_badge(t.status) }}</td>
               <td style="min-width: 140px;">{{ sla_cell(t) }}</td>
             </tr>
             {% endfor %}

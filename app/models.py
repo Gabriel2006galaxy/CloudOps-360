@@ -310,6 +310,9 @@ class Ticket(db.Model):
     first_responded_at = db.Column(db.DateTime, nullable=True)
     resolved_at = db.Column(db.DateTime, nullable=True)
     closed_at = db.Column(db.DateTime, nullable=True)
+    # SLA escalation: each is set once per deadline (cleared when the SLA is recalculated)
+    sla_warning_sent_at = db.Column(db.DateTime, nullable=True)  # 75 % of the resolution window used
+    escalated_at = db.Column(db.DateTime, nullable=True)  # resolution SLA breached, admins alerted
 
     # Customer satisfaction (CSAT), given once by the reporter after closing
     satisfaction_rating = db.Column(db.SmallInteger, nullable=True)  # 1-5 stars
@@ -331,6 +334,11 @@ class Ticket(db.Model):
         if self.is_resolved or not self.resolution_due_at:
             return False
         return datetime.now(timezone.utc) > as_utc(self.resolution_due_at)
+
+    @property
+    def is_escalated(self):
+        """Breached its resolution SLA and was escalated to the administrators (still active)."""
+        return self.escalated_at is not None and not self.is_resolved
 
     @property
     def response_overdue(self):

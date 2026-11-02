@@ -17,6 +17,7 @@
     initFormFeedback();
     initAutoSubmitFilters();
     initSessionWarning();
+    initRowLinks();
   });
 
   function storage(op, key, value) {
@@ -25,6 +26,23 @@
       window.localStorage.setItem(key, value);
     } catch (e) { /* private mode: preferences simply are not remembered */ }
     return null;
+  }
+
+  /* ---------------- Clickable table rows ---------------- */
+  // A row with data-href opens that page when clicked anywhere (links and buttons keep their own action)
+  function initRowLinks() {
+    document.addEventListener('click', function (e) {
+      var row = e.target.closest('tr[data-href]');
+      if (!row || e.target.closest('a, button, input, select, textarea, label')) return;
+      var href = row.getAttribute('data-href');
+      if (!href || href.charAt(0) !== '/' || href.charAt(1) === '/') return;  // same-site paths only
+      if (window.getSelection && String(window.getSelection())) return;  // the user is selecting text
+      if (e.ctrlKey || e.metaKey) {
+        window.open(href, '_blank', 'noopener');
+      } else {
+        window.location.href = href;
+      }
+    });
   }
 
   /* ---------------- Theme ---------------- */

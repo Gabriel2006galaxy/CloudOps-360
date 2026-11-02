@@ -376,8 +376,9 @@ def run_auto_assign(force=False, now=None):
 
 
 def run_scheduled_sweep(app):
-    """Called at the start of web requests: assigns overdue queue tickets at most
-    once every AUTO_ASSIGN_SWEEP_SECONDS per worker. Never breaks the request."""
+    """Called at the start of web requests, at most once every AUTO_ASSIGN_SWEEP_SECONDS
+    per worker: assigns queue tickets that waited too long and runs the SLA escalation.
+    Never breaks the request."""
     interval = app.config.get('AUTO_ASSIGN_SWEEP_SECONDS', 60)
     if interval <= 0:
         return
@@ -387,12 +388,23 @@ def run_scheduled_sweep(app):
         return
     state['last_run'] = now
     try:
-        if not get_auto_assign_config().enabled:
-            return
-        assigned, _ = run_auto_assign()
-        db.session.commit()
-        if assigned:
-            app.logger.info('[Auto-assign] %d queued ticket(s) assigned', len(assigned))
+        if get_auto_assign_config().enabled:
+            assigned, _ = run_auto_assign()
+            db.session.commit()
+            if assigned:
+                app.logger.info('[Auto-assign] %d queued ticket(s) assigned', len(assigned))
     except Exception as exc:  # noqa: BLE001 - background work must not fail the page
         db.session.rollback()
         app.logger.error('[Auto-assign] Scheduled run failed: %s', type(exc).__name__)
+
+    if not app.config.get('SLA_ESCALATION_ENABLED', True):
+        return
+    try:
+        from app.services.escalation import run_sla_escalation
+        warned, escalated = run_sla_escalation()
+        db.session.commit()
+        if warned or escalated:
+            app.logger.info('[SLA] %d warning(s), %d escalation(s)', len(warned), len(escalated))
+    except Exception as exc:  # noqa: BLE001
+        db.session.rollback()
+        app.logger.error('[SLA] Escalation run failed: %s', type(exc).__name__)

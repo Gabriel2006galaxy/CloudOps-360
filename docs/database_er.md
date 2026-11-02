@@ -80,6 +80,8 @@ erDiagram
         datetime first_responded_at
         datetime resolved_at
         datetime closed_at
+        datetime sla_warning_sent_at "75 % of the SLA used, technician warned"
+        datetime escalated_at "SLA breached, admins alerted"
         smallint satisfaction_rating "CHECK 1..5, nullable (CSAT)"
         varchar satisfaction_comment
         datetime rated_at

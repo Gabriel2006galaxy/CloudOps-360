@@ -36,15 +36,14 @@
       </div>
       <div class="table-responsive">
         <table class="table table-premium align-middle">
-          <thead><tr><th scope="col">Reference</th><th scope="col">Title</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col">Progress</th></tr></thead>
+          <thead><tr><th scope="col">Reference</th><th scope="col">Title</th><th scope="col">Priority / Status</th><th scope="col">Progress</th></tr></thead>
           <tbody>
             {% for t in m.recent_tickets %}
-            <tr>
+            <tr class="row-link" data-href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}">
               <td class="text-nowrap"><a class="fw-bold text-info text-decoration-none font-monospace" href="{{ url_for('tickets.detail', reference_id=t.reference_id) }}">{{ t.reference_id }}</a></td>
-              <td><div class="text-truncate" style="max-width: 240px;" title="{{ t.title }}">{{ t.title }}</div>
+              <td><div class="cell-title" title="{{ t.title }}">{{ t.title }}</div>
                 <small class="text-muted">{% if t.technician %}{{ t.technician.full_name }}{% else %}Awaiting assignment{% endif %}</small></td>
-              <td>{{ priority_badge(t.priority) }}</td>
-              <td>{{ status_badge(t.status) }}{% if t.status == 'Resolved' %}<div class="small text-warning mt-1">Please confirm</div>{% endif %}</td>
+              <td class="cell-badges">{{ priority_badge(t.priority) }}{{ status_badge(t.status) }}{% if t.status == 'Resolved' %}<div class="small text-warning mt-1">Please confirm</div>{% endif %}</td>
               <td style="min-width: 140px;">{{ sla_cell(t) }}</td>
             </tr>
             {% endfor %}

@@ -87,6 +87,13 @@ class Config:
     # the queue for tickets that waited too long.
     AUTO_ASSIGN_DEFAULT_ENABLED = env_bool('AUTO_ASSIGN_DEFAULT_ENABLED', True)
     AUTO_ASSIGN_SWEEP_SECONDS = env_int('AUTO_ASSIGN_SWEEP_SECONDS', 60)
+    # SLA escalation runs in the same sweep: warning at 75 % of the resolution time,
+    # administrators alerted when the resolution SLA is breached
+    SLA_ESCALATION_ENABLED = env_bool('SLA_ESCALATION_ENABLED', True)
+
+    # Times are stored in UTC and shown in this time zone (India: UTC+5:30, no daylight saving)
+    DISPLAY_TIMEZONE_NAME = os.environ.get('DISPLAY_TIMEZONE_NAME', 'IST')
+    DISPLAY_UTC_OFFSET_MINUTES = env_int('DISPLAY_UTC_OFFSET_MINUTES', 330)
 
     # AWS configuration (credentials come from the EC2 IAM instance role, never from code)
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
@@ -123,6 +130,8 @@ class TestingConfig(Config):
     SHOW_DEMO_ACCOUNTS = False
     # Existing tests exercise the manual claim flow; auto-assignment tests switch it on
     AUTO_ASSIGN_DEFAULT_ENABLED = False
+    # Escalation adds notifications; its own tests switch it on
+    SLA_ESCALATION_ENABLED = False
 
 
 class ProductionConfig(Config):

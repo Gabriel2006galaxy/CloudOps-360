@@ -24,10 +24,15 @@ sudo bash /opt/cloudops360/infrastructure/aws/reset_demo_data.sh
 | 3 | **Secrets Manager** | `cloudops360/prod/db`, `cloudops360/prod/app` (the app reads them via the role) |
 | 3 | **Browser 🔒** | https, http → https redirect |
 | 2+3 | **Proof report** (server terminal, see below) | every line **PASS** |
+| 2+3 | **In the app: admin → System Status** | green chips EC2, RDS, EFS, IAM role, Secrets Manager, HTTPS |
 
 Proof report: EC2 → cloudops360-web → **Connect → EC2 Instance Connect** → paste:
 ```bash
 sudo bash /opt/cloudops360/infrastructure/aws/verify_deployment.sh | grep -E "^(PASS|FAIL)"
+```
+Show the database (RDS) and the files (EFS) when ma'am asks:
+```bash
+sudo bash /opt/cloudops360/infrastructure/aws/show_database.sh
 ```
 Update the live server after pushing code:
 ```bash
@@ -87,6 +92,12 @@ curl -fsSL https://raw.githubusercontent.com/Gabriel2006galaxy/CloudOps-360/main
   → pick stars + comment → Sarah gets a notification; admin **Analytics** shows the average.
 - **Claim still exists:** when every technician is free, new tickets wait in the queue and anyone can
   claim them (auto-assigned after Critical 30 min / High 2 h / Medium 4 h / Low 12 h).
+- **SLA escalation:** Sarah → bell → **"SLA warning: INC-2026-00013"** (75 % of its time used). Admin →
+  bell → **"SLA breached: INC-2026-00005"** → the ticket shows **Escalated to admin**. Both happen on
+  their own after a reset (first page load).
+- **System Status:** admin → sidebar **System Status** → live check of EC2, IAM role, RDS + TLS, EFS + TLS,
+  Secrets Manager, HTTPS (never shows a secret).
+- **Small things:** click anywhere on a ticket row to open it; all times are in IST.
 
 ## 3. Run on the laptop (practice / backup)
 ```bash

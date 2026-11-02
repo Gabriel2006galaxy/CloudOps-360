@@ -84,6 +84,10 @@ DEMO_TICKETS = [
     ("Auto scaling group not launching new instances",
      "Scaling activity fails with 'insufficient capacity' in us-east-1a during peak hours.",
      0, TicketPriority.HIGH, TicketStatus.CLOSED, 'emp_elena', 'tech_sarah', 'ec2-batch-asg', 240, 9),
+    # Already past 75 % of its 72 h SLA: shows the SLA warning (still ~15 h left)
+    ("Shared drive almost full on finance file share",
+     "The finance team's shared folder is at 93% of its quota; month-end reports may fail to save.",
+     3, TicketPriority.LOW, TicketStatus.IN_PROGRESS, 'emp_jordan', 'tech_sarah', 'efs-finance-share', 56, None),
 ]
 
 # Technician specialities (category indexes) used by auto-assignment

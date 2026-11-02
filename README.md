@@ -8,8 +8,8 @@
 | | |
 | :--- | :--- |
 | **Stack** | Python 3.11/3.12 · Flask 3 (blueprints, Jinja2) · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF · MySQL 8 / Amazon RDS · Bootstrap 5 · Bootstrap Icons · Chart.js · Nginx + Gunicorn on EC2 · Amazon EFS · IAM · Secrets Manager |
-| **Tests** | 146 pytest tests — passing on SQLite **and** MySQL 8.0 |
-| **Status** | Application complete and verified locally (146 tests). **All three labs are verified live on AWS** (own AWS account, Mumbai, since 2026-10-24): EC2 + Nginx + Gunicorn, Amazon RDS for MySQL (private, encrypted, TLS), Amazon EFS (encrypted, TLS), IAM role, Secrets Manager and HTTPS; `verify_deployment.sh` all PASS — see [What still needs your action](#11-what-still-needs-your-action-aws). |
+| **Tests** | 153 pytest tests — passing on SQLite **and** MySQL 8.0 |
+| **Status** | Application complete and verified locally (153 tests). **All three labs are verified live on AWS** (own AWS account, Mumbai, since 2026-10-24): EC2 + Nginx + Gunicorn, Amazon RDS for MySQL (private, encrypted, TLS), Amazon EFS (encrypted, TLS), IAM role, Secrets Manager and HTTPS; `verify_deployment.sh` all PASS — see [What still needs your action](#11-what-still-needs-your-action-aws). |
 
 Documentation: [Requirements checklist](docs/REQUIREMENTS_CHECKLIST.md) ·
 [AWS deployment guide](docs/aws_deployment.md) · [Architecture](docs/architecture.md) ·
@@ -51,6 +51,19 @@ Auto-Assignment** (switch on/off, limits) and set technician skills on the user'
 (reason and optional "back on" date); an admin **approves or rejects** it on the dashboard, and only an
 approved request makes them **Away** (they return automatically on the back-on date, or press "I'm back").
 Admins are warned about away technicians who still hold open tickets. CLI for cron: `flask auto-assign [--now]`.
+
+**SLA escalation** — when 75 % of a ticket's resolution time is used, the assigned technician gets an
+"SLA warning" (the admins if nobody is assigned). When the deadline passes, every admin and the technician
+are alerted, the ticket shows **Escalated** and the event goes to the audit trail — once per deadline
+(a new priority or reopening starts again). Runs in the same background check as auto-assignment;
+CLI for cron: `flask sla-check`.
+
+**System Status** (Administration) — a read-only page that checks live where the app runs and how it
+is protected: EC2 instance and IAM role (via instance metadata), RDS engine and TLS, EFS mount and TLS,
+where the secrets come from (never their values), HTTPS and the security settings.
+
+All times are shown in **IST (UTC+5:30)** (stored in UTC; `DISPLAY_TIMEZONE_NAME` /
+`DISPLAY_UTC_OFFSET_MINUTES`), and clicking anywhere on a ticket row opens the ticket.
 
 **Customer satisfaction (CSAT)** — after a resolved ticket is closed, the reporter rates the support
 1–5 stars with an optional comment (once). Ratings appear on the ticket, notify the technician, and
@@ -194,6 +207,7 @@ Never commit `.env`. It is gitignored, and so are `*.db`, `uploads/` and `instan
 .venv\Scripts\flask db check                   # models and migrations in sync?
 .venv\Scripts\flask seed-db                    # dev demo data (refused in production)
 .venv\Scripts\flask reset-demo                 # demo data back to the start, fresh ticket times (refused in production)
+.venv\Scripts\flask sla-check                  # SLA warnings / escalations now (also runs on page loads)
 .venv\Scripts\flask seed-reference-data        # categories + SLA policies only (safe in production)
 .venv\Scripts\flask create-admin               # interactive admin creation (production)
 .venv\Scripts\flask storage-check              # verify every attachment file + SHA-256
