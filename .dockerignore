@@ -1,0 +1,21 @@
+# Never put secrets, local data or build leftovers into the image
+.git
+.gitignore
+.venv
+venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.claude
+.env
+.env.*
+*.db
+*.sqlite3
+uploads
+instance
+tests/.test_uploads
+docs/*.docx
+docs/*.pptx
+docs/*.pdf
+demo_files

@@ -33,9 +33,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Development server with migrations (the image's default command is production Gunicorn)
+    command: ["sh", "-c", "flask --app wsgi db upgrade && python run.py"]
     environment:
       FLASK_ENV: development
       FLASK_HOST: 0.0.0.0
+      PORT: "5000"   # used by the image's health check
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       DATABASE_URL: mysql+pymysql://cloudops_user:${MYSQL_PASSWORD}@db:3306/cloudops360?charset=utf8mb4
       UPLOAD_FOLDER: /app/uploads
