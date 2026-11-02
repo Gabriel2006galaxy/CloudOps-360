@@ -236,8 +236,9 @@ def reset_demo_data():
 
     Deletes every ticket (with its comments, history and attachment files), notification,
     audit entry, sign-in attempt and setting; removes users and categories that are not
-    part of the demo; resets the demo accounts, technician skills and SLA targets; then
-    creates the demo incidents again. Development / demo databases only.
+    part of the demo; resets the demo accounts (keeping their current passwords),
+    technician skills and SLA targets; then creates the demo incidents again.
+    Development / demo databases only.
     """
     from app.services.storage import get_storage
 
@@ -257,13 +258,16 @@ def reset_demo_data():
         db.session.delete(user)
     db.session.flush()
     for username, email, full_name, role, dept, password in DEMO_USERS:
-        user = User.query.filter_by(username=username).first() or User(username=username)
+        user = User.query.filter_by(username=username).first()
+        if user is None:
+            user = User(username=username)
+            user.set_password(password)
+        # An existing account keeps its password: on a public server the demo passwords are changed
         user.email, user.full_name, user.role, user.department = email, full_name, role, dept
         user.is_active, user.last_login_at = True, None
         user.is_available, user.away_note, user.away_until = True, None, None
         user.leave_requested_at, user.leave_note, user.leave_until = None, None, None
         user.skills = []
-        user.set_password(password)
         db.session.add(user)
     db.session.flush()
 

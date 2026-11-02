@@ -136,12 +136,9 @@ copy `.env.example` to `.env`, create the database and user (SQL in `scripts/set
 or `infrastructure/aws/rds_mysql_setup.sql`), then `flask db upgrade && flask seed-db && python run.py`.
 
 **Development demo accounts** (created only by `flask seed-db`; the command refuses to run in production):
-
-| Role | Username | Password |
-| :--- | :--- | :--- |
-| Administrator | `admin` | `AdminPass123!` |
-| Technician | `tech_sarah`, `tech_marcus` | `TechPass123!` |
-| Employee | `emp_jordan`, `emp_elena` | `EmpPass123!` |
+`admin`, `tech_sarah`, `tech_marcus`, `emp_jordan`, `emp_elena`. On a local copy, sign in with the one-click demo
+buttons on the Sign In page (`SHOW_DEMO_ACCOUNTS`, development only). On any server reachable by others, change
+all five passwords and set `SHOW_DEMO_ACCOUNTS=false`; `flask reset-demo` keeps the changed passwords.
 
 If `DATABASE_URL` is empty in development, the app falls back to a local SQLite file with a
 warning (`ALLOW_SQLITE_FALLBACK`). Production never falls back.

@@ -64,13 +64,16 @@ curl -fsSL https://raw.githubusercontent.com/Gabriel2006galaxy/CloudOps-360/main
 4. Wait **about 10 minutes** → open `http://<IP>` (http, not https).
 5. Check the lab **timer** has enough time left for the demo.
 
-## 2. Demo accounts (one-click buttons on the Sign In page)
-| Role | Username | Password |
-| --- | --- | --- |
-| Admin | `admin` | `AdminPass123!` |
-| Technician | `tech_sarah` | `TechPass123!` |
-| Employee | `emp_jordan` | `EmpPass123!` |
-| Employee 2 | `emp_elena` | `EmpPass123!` |
+## 2. Demo accounts
+| Role | Username |
+| --- | --- |
+| Admin | `admin` |
+| Technicians | `tech_sarah`, `tech_marcus` |
+| Employees | `emp_jordan`, `emp_elena` |
+
+- **Live site:** private passwords, saved in your browser (click the username box → pick the account).
+  The demo buttons are off there, and the reset keeps the passwords.
+- **Laptop copy:** the one-click demo buttons on the Sign In page fill everything in.
 
 - Demo Step 3 (access denied) — new tab (**Ctrl + T**), paste:
   - `http://<IP>/tickets/INC-2026-00002` → 403
@@ -88,7 +91,7 @@ curl -fsSL https://raw.githubusercontent.com/Gabriel2006galaxy/CloudOps-360/main
   nobody can take a ticket — no daily work for the admin.
 - **Queue:** admin → **Auto-Assignment** shows the 2 sample tickets still waiting and "auto after 4 h /
   12 h" — the system assigns them on its own (technicians can claim them earlier).
-- **Leave (Away):** Marcus (`tech_marcus` / `TechPass123!`) → **Queue & Workload** → reason "Sick leave",
+- **Leave (Away):** Marcus (`tech_marcus`) → **Queue & Workload** → reason "Sick leave",
   back-on date → **Send leave request** (he stays Available). Admin → dashboard shows **Leave request**
   → **Approve** → Marcus is **Away**: yellow warning with his open tickets, Away badge on **Users &
   Roles**, new tickets go to Sarah only. Undo: Marcus → **I'm back**.

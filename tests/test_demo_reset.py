@@ -28,6 +28,7 @@ def test_reset_demo_restores_fresh_demo_data(app, runner):
     extra.set_password('Support2026A')
     db.session.add(extra)
     SLAPolicy.query.filter_by(priority=TicketPriority.HIGH).one().resolution_time_hours = 10
+    User.query.filter_by(username='admin').one().set_password('Changed-On-Server-2026')
     set_availability(User.query.filter_by(username='tech_marcus').one(), False, note='Sick leave')
     save_auto_assign_config(False, 3, dict(DEFAULT_WAIT_MINUTES))
     storage = get_storage()
@@ -58,6 +59,9 @@ def test_reset_demo_restores_fresh_demo_data(app, runner):
     assert SLAPolicy.query.filter_by(priority=TicketPriority.HIGH).one().resolution_time_hours == 12
     marcus = User.query.filter_by(username='tech_marcus').one()
     assert not marcus.is_away and len(marcus.skills) == 3
+    # Passwords changed on a public server survive the reset (the demo defaults are public on GitHub)
+    admin = User.query.filter_by(username='admin').one()
+    assert admin.check_password('Changed-On-Server-2026') and not admin.check_password('AdminPass123!')
     assert SystemSetting.query.count() == 0 and Notification.query.count() == 0
     assert Attachment.query.count() == 0 and not os.path.exists(stored)
     assert [a.action for a in AuditLog.query.order_by(AuditLog.id)] == ['SYSTEM_SEED_INITIALIZED', 'SYSTEM_DEMO_RESET']
