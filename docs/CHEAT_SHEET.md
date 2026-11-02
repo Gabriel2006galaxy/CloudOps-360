@@ -1,8 +1,8 @@
 # CloudOps 360 — Cheat Sheet (everything to copy-paste)
 
-## 0. FINAL DEMO: the site is always on (own AWS account, all 3 labs)
-- Open **https://13.201.137.27** → "not private" warning → **Advanced → Proceed** (self-signed
-  certificate, still encrypted). Demo buttons work as before. Don't stop the instance (the IP would change).
+## 0. FINAL DEMO: the site is always on (own AWS account)
+- Open **https://13-201-137-27.sslip.io** — padlock, trusted Let's Encrypt certificate (the old https://13.201.137.27
+  still works but warns). Demo buttons work as before. Don't stop the instance (the IP would change).
 - AWS console: sign in as **root user** (your email + password + Microsoft Authenticator code) →
   region **Asia Pacific (Mumbai)**.
 - **About 30 minutes before presenting: reset the demo data** (fresh ticket times, practice data
@@ -39,6 +39,7 @@ Show the database (RDS) and the files (EFS) when ma'am asks:
 ```bash
 sudo bash /opt/cloudops360/infrastructure/aws/show_database.sh
 ```
+Any other "show me …" question: Demo Script, Step 8 Part D (paste the `q` setup once, then `q "SELECT …"`).
 Update the live server after pushing code:
 ```bash
 sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main
@@ -142,7 +143,7 @@ sudo bash /opt/cloudops360/infrastructure/aws/deploy_update.sh main
 
 ## 6. Starting a new chat
 Open the chat in the `CloudOps-360` folder and say:
-> Read README.md, docs/REQUIREMENTS_CHECKLIST.md and docs/CHEAT_SHEET.md. All 3 labs run on my own AWS account (Mumbai, https://13.201.137.27). Next I want to … (add a feature / clean up AWS after the demo).
+> Read README.md, docs/REQUIREMENTS_CHECKLIST.md and docs/CHEAT_SHEET.md. All 3 labs run on my own AWS account (Mumbai, https://13-201-137-27.sslip.io). Next I want to … (add a feature / clean up AWS after the demo).
 
 ## 7. Next steps (not done yet)
 - After the final demo: delete RDS, EFS, the instance and the secrets (ask Claude for the clean-up steps).
